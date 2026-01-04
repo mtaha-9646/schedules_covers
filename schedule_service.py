@@ -59,6 +59,7 @@ class ScheduleManager:
         self._course_count_column = self._select_course_count_column()
         self._manifest = self._load_teacher_manifest()
         self._teachers = self._build_teacher_index()
+        self._email_index = self._build_email_index()
 
     def _load_schedule(self) -> pd.DataFrame:
         df = pd.read_excel(self.excel_path)
@@ -159,6 +160,20 @@ class ScheduleManager:
                 "day_count": 0,
             }
         return teachers
+
+    def _build_email_index(self) -> dict[str, dict]:
+        index = {}
+        for meta in self._teachers.values():
+            email = meta.get("email")
+            if not email:
+                continue
+            index[email.strip().lower()] = meta
+        return index
+
+    def find_teacher_by_email(self, email: str) -> dict | None:
+        if not email:
+            return None
+        return self._email_index.get(email.strip().lower())
 
     def _course_count_for_group(self, group: pd.DataFrame) -> int:
         if not self._course_count_column:
@@ -346,6 +361,7 @@ class ScheduleManager:
             day_sections = self._group_periods(day_rows)
             schedule_by_day.append(
                 {
+                    "code": day_code,
                     "label": day_name,
                     "sections": day_sections,
                     "scheduled_count": scheduled_count,
@@ -354,6 +370,23 @@ class ScheduleManager:
                 }
             )
         return {"meta": meta, "schedule": schedule_by_day}
+
+    def day_summary_for_teacher(self, slug: str, day_code: str) -> dict:
+        data = self.get_schedule_for_teacher(slug)
+        for day in data["schedule"]:
+            if day.get("code") == day_code:
+                return day
+        meta = self.get_teacher(slug)
+        level_label = meta["level_label"] if meta else "General"
+        max_periods = self._max_periods_for_level(level_label, day_code)
+        return {
+            "code": day_code,
+            "label": DAY_LABELS.get(day_code, day_code),
+            "sections": [],
+            "scheduled_count": 0,
+            "max_periods": max_periods,
+            "free_periods": max_periods,
+        }
 
     def all_teacher_schedules(self) -> list[dict]:
         schedules = []

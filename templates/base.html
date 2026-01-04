@@ -8,8 +8,16 @@
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="{{ url_for('index') }}">Charter Teacher Scheduler</a>
-      <p class="tagline">Live view of every teacher’s roaming schedule.</p>
+      <div class="brand-row">
+        <a class="brand" href="{{ url_for('index') }}">Charter Teacher Scheduler</a>
+        <p class="tagline">Live view of every teacher’s roaming schedule.</p>
+      </div>
+      <nav class="site-nav">
+        <a href="{{ url_for('index') }}">Roster</a>
+        <a href="{{ url_for('covers_dashboard') }}">Covers</a>
+        <a href="{{ url_for('covers_absent') }}">Absences</a>
+        <a href="{{ url_for('covers_assignments') }}">Assignments</a>
+      </nav>
     </header>
     <main>
       {% block content %}{% endblock %}

@@ -6,6 +6,7 @@ import subprocess
 
 from flask import Flask, abort, jsonify, render_template, request
 
+from cover_assignment import CoverAssignmentManager
 from covers_service import CoversManager
 from schedule_service import DAY_LABELS, ORDERED_PERIODS, ScheduleManager
 
@@ -18,6 +19,7 @@ DEPLOY_SCRIPT = os.path.join(BASE_DIR, "deploy.sh")
 app = Flask(__name__)
 manager = ScheduleManager(DATA_FILE)
 covers_manager = CoversManager()
+assignment_manager = CoverAssignmentManager(manager, covers_manager)
 
 
 @app.route("/")
@@ -68,6 +70,22 @@ def external_leave_approvals():
     if not payload:
         app.logger.warning("Leave webhook received without JSON payload")
         return jsonify({"error": "expected JSON payload"}), 400
+    required_fields = ["email", "leave_type", "leave_start", "leave_end", "submitted_at"]
+    missing = [field for field in required_fields if not payload.get(field)]
+    if missing:
+        msg = f"missing fields: {', '.join(missing)}"
+        app.logger.warning(msg)
+        return jsonify({"error": msg}), 400
+    teacher_meta = manager.find_teacher_by_email(payload["email"])
+    if not teacher_meta:
+        app.logger.warning("No teacher found for email %s", payload["email"])
+        return jsonify({"error": "teacher not found"}), 404
+    payload = payload.copy()
+    payload["teacher"] = teacher_meta["name"]
+    payload["email"] = teacher_meta["email"]
+    payload["teacher_slug"] = teacher_meta["slug"]
+    payload["subject"] = teacher_meta["subject"]
+    payload["level_label"] = teacher_meta["level_label"]
     try:
         record = covers_manager.record_leave(payload)
     except ValueError as exc:
@@ -76,13 +94,14 @@ def external_leave_approvals():
     except Exception:
         app.logger.exception("Failed to record leave payload")
         return jsonify({"error": "unable to process leave webhook"}), 500
+    assignment_manager.assign_for_record(record)
     app.logger.info(
         "Recorded leave for %s on %s (request %s)",
         record["teacher"],
-        record["leave_date"],
+        record["leave_start"],
         record["request_id"],
     )
-    return jsonify({"status": "recorded", "teacher": record["teacher"], "date": record["leave_date"]})
+    return jsonify({"status": "recorded", "teacher": record["teacher"], "date": record["leave_start"]})
 
 
 @app.route("/covers")
@@ -99,6 +118,12 @@ def covers_list():
 def covers_absent():
     records = covers_manager.get_all_records()
     return render_template("covers_absent.html", records=records)
+
+
+@app.route("/covers/assignments")
+def covers_assignments():
+    assignments = assignment_manager.get_assignments()
+    return render_template("covers_assignments.html", assignments=assignments)
 
 
 @app.route("/internal/deploy", methods=["POST"])

@@ -24,8 +24,11 @@
             <thead>
               <tr>
                 <th>Teacher</th>
+                <th>Email</th>
                 <th>Status</th>
                 <th>Leave Type</th>
+                <th>Start → End</th>
+                <th>Submitted</th>
                 <th>Reason</th>
                 <th>Request ID</th>
                 <th>Recorded At</th>
@@ -37,8 +40,11 @@
               {% for entry in entries %}
                 <tr>
                   <td>{{ entry.teacher }}</td>
+                  <td>{{ entry.teacher_email or "missing" }}</td>
                   <td>{{ entry.status or "pending" }}</td>
                   <td>{{ entry.leave_type or "unspecified" }}</td>
+                  <td>{{ entry.leave_start }} → {{ entry.leave_end }}</td>
+                  <td>{{ entry.submitted_at }}</td>
                   <td>{{ entry.reason or "no reason given" }}</td>
                   <td>{{ entry.request_id }}</td>
                   <td>{{ entry.recorded_at }}</td>

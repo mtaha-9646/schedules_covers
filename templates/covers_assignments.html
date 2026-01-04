@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="covers-assignments-page">
+  <header class="covers-header">
+    <h1>Assigned Covers</h1>
+    <p>Automatically generated cover assignments for every approved leave. Each row represents the teacher who will cover a specific absent colleague on a given day.</p>
+    <p class="covers-note">
+      Use this list to confirm which teacher is covering whom, including how many free periods they had and when the assignment was made.
+    </p>
+  </header>
+
+  <section class="covers-section">
+    {% if assignments %}
+      {% for date, rows in assignments|dictsort %}
+        <article class="cover-card">
+          <header>
+            <div>
+              <strong>{{ date }}</strong>
+              <p>{{ rows|length }} assignment{{ rows|length > 1 and "s" or "" }}</p>
+            </div>
+          </header>
+          <table class="covers-table">
+            <thead>
+              <tr>
+                <th>Absent</th>
+                <th>Cover</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Leave Type</th>
+                <th>Range</th>
+                <th>Submitted</th>
+                <th>Cover Free</th>
+                <th>Assigned At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in rows %}
+                <tr>
+                  <td>
+                    {{ entry.absent_teacher }}<br />
+                    <small>{{ entry.absent_email }}</small>
+                  </td>
+                  <td>
+                    {{ entry.cover_teacher }}<br />
+                    <small>{{ entry.cover_email }}</small>
+                  </td>
+                  <td>{{ entry.subject or "General" }}</td>
+                  <td>{{ entry.status or "pending" }}</td>
+                  <td>{{ entry.leave_type or "unspecified" }}</td>
+                  <td>{{ entry.leave_start }} → {{ entry.leave_end }}</td>
+                  <td>{{ entry.submitted_at }}</td>
+                  <td>{{ entry.cover_free_periods }} / {{ entry.cover_max_periods }} free</td>
+                  <td>{{ entry.cover_assigned_at }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p>No cover assignments yet.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

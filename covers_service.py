@@ -43,7 +43,7 @@ class CoversManager:
 
     def record_leave(self, payload: Dict[str, Any]) -> dict[str, Any]:
         normalized = self._normalize_payload(payload)
-        date_key = normalized["leave_date"]
+        date_key = normalized["leave_start"]
         day_records = [
             entry for entry in self.records.get(date_key, []) if entry["request_id"] != normalized["request_id"]
         ]
@@ -72,14 +72,21 @@ class CoversManager:
     def _normalize_payload(self, payload: Dict[str, Any]) -> dict[str, Any]:
         if "request_id" not in payload or "teacher" not in payload:
             raise ValueError("payload missing required request_id or teacher")
-        leave_date = self._normalize_date(payload.get("leave_date"))
+        if "leave_start" not in payload and "leave_date" not in payload:
+            raise ValueError("payload missing leave_start date")
+        if "leave_end" not in payload:
+            raise ValueError("payload missing leave_end date")
+        leave_start, leave_end, submitted_at = self._normalize_payload_dates(payload)
         entry = {
             "request_id": str(payload.get("request_id")),
             "teacher": str(payload.get("teacher")),
+            "teacher_email": payload.get("email") or payload.get("teacher_email"),
             "leave_type": payload.get("leave_type"),
-            "leave_date": leave_date,
+            "leave_start": leave_start,
+            "leave_end": leave_end,
             "status": payload.get("status"),
             "reason": payload.get("reason"),
+            "submitted_at": submitted_at,
             "recorded_at": datetime.utcnow().isoformat(),
             "payload": payload,
         }
@@ -105,6 +112,28 @@ class CoversManager:
         normalized_date = self._normalize_date(date_key) if date_key else datetime.utcnow().date().isoformat()
         return self.records.get(normalized_date, [])
 
+    def _normalize_payload_dates(self, payload: Dict[str, Any]) -> tuple[str, str, str]:
+        leave_start = self._normalize_date(payload.get("leave_start") or payload.get("leave_date"))
+        leave_end = self._normalize_date(payload.get("leave_end") or leave_start)
+        submitted_at = payload.get("submitted_at")
+        if not submitted_at:
+            submitted_at = datetime.utcnow().isoformat()
+        else:
+            submitted_at = self._normalize_datetime(submitted_at)
+        return leave_start, leave_end, submitted_at
+
+    def _normalize_datetime(self, raw: Any) -> str:
+        if isinstance(raw, datetime):
+            return raw.isoformat()
+        raw_str = str(raw).strip()
+        try:
+            return datetime.fromisoformat(raw_str).isoformat()
+        except ValueError:
+            try:
+                return datetime.strptime(raw_str, "%Y-%m-%dT%H:%M:%S").isoformat()
+            except ValueError:
+                return datetime.utcnow().isoformat()
+
     def _should_forward(self, entry: dict[str, Any]) -> bool:
         if not COVERS_FORWARD_URL:
             return False
@@ -119,10 +148,13 @@ class CoversManager:
         payload = {
             "request_id": entry["request_id"],
             "teacher": entry["teacher"],
+            "teacher_email": entry.get("teacher_email"),
             "leave_type": entry.get("leave_type"),
-            "leave_date": entry["leave_date"],
+            "leave_start": entry["leave_start"],
+            "leave_end": entry["leave_end"],
             "status": entry.get("status"),
             "reason": entry.get("reason"),
+            "submitted_at": entry.get("submitted_at"),
             "notified_at": datetime.utcnow().isoformat(),
         }
         headers = {"Content-Type": "application/json"}

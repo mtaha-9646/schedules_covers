@@ -8,6 +8,9 @@
       Use this panel to confirm incoming leave approvals, retry the webhook manually, and copy
       the request payload for the downstream system that originates those webhooks.
     </p>
+    <p class="covers-link">
+      <a href="{{ url_for('covers_assignments') }}">View assigned covers</a>
+    </p>
   </header>
 
   <section class="covers-section">
@@ -100,8 +103,11 @@
                     return `
                       <li>
                         <span class="cover-teacher">${teacher}</span>
+                        <span class="cover-email">${escapeHTML(row.teacher_email || "no email")}</span>
                         <span class="cover-status">${status}</span>
                         <span class="cover-type">${leaveType}</span>
+                        <span class="cover-dates">${escapeHTML(row.leave_start)} → ${escapeHTML(row.leave_end)}</span>
+                        <span class="cover-submitted">Submitted ${escapeHTML(row.submitted_at)}</span>
                         <span class="cover-reason">${reason}</span>
                         <span class="cover-forward" title="${forwardDetails}">
                           ${forwardStatus}
