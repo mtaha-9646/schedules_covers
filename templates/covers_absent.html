@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="covers-absent-page">
+  <header class="covers-header">
+    <h1>Active Leave Submissions</h1>
+    <p>
+      Review every teacher who has been marked absent or excused so the covering team can respond.
+      This page mirrors the incoming webhook payloads, grouped by date, and shows the reason/status.
+    </p>
+  </header>
+
+  <section class="covers-section">
+    {% if records %}
+      {% for date, entries in records|dictsort %}
+        <article class="cover-card">
+          <header>
+            <div>
+              <strong>{{ date }}</strong>
+              <p>{{ entries|length }} request{{ entries|length > 1 and "s" or "" }}</p>
+            </div>
+          </header>
+          <table class="covers-table">
+            <thead>
+              <tr>
+                <th>Teacher</th>
+                <th>Status</th>
+                <th>Leave Type</th>
+                <th>Reason</th>
+                <th>Request ID</th>
+                <th>Recorded At</th>
+                <th>Forward Status</th>
+                <th>Forward Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in entries %}
+                <tr>
+                  <td>{{ entry.teacher }}</td>
+                  <td>{{ entry.status or "pending" }}</td>
+                  <td>{{ entry.leave_type or "unspecified" }}</td>
+                  <td>{{ entry.reason or "no reason given" }}</td>
+                  <td>{{ entry.request_id }}</td>
+                  <td>{{ entry.recorded_at }}</td>
+                  <td>{{ entry.forward_status or "pending" }}</td>
+                  <td>{{ entry.forward_response or "not forwarded" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p>No leave submissions have been received yet.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

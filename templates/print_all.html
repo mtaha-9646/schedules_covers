@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="print-all-page">
+  <header class="print-all-header">
+    <p class="eyebrow">Printable export</p>
+    <h1>All teacher schedules</h1>
+    <p class="lede">
+      Generate one PDF that contains every teacher roster, grouped by day and period. Use your browser’s print dialog
+      and select “Save as PDF” to deliver an offline copy for meetings or archives.
+    </p>
+  </header>
+
+  <section class="print-all-grid">
+    {% for entry in schedules %}
+      <article class="print-teacher-card">
+        <header>
+          <div>
+            <h2>{{ entry.meta.name }}</h2>
+            <p class="teacher-meta">
+              {{ entry.meta.subject }} · {{ entry.meta.level_label }} · {{ entry.meta.primary_class }}
+            </p>
+          </div>
+          <span class="teacher-days">{{ entry.meta.course_total }} courses · {{ entry.meta.day_count }} days</span>
+        </header>
+        <div class="print-schedule">
+          {% if entry.schedule %}
+            {% for day in entry.schedule %}
+              <div class="print-day-block">
+                <div class="print-day-label">
+                  <strong>{{ day.label }}</strong>
+                  <span>{{ day.sections | length }} period(s)</span>
+                </div>
+                {% for section in day.sections %}
+                  <div class="print-period-row">
+                    <div class="print-period-title">
+                      <strong>{{ section.period }}</strong>
+                      <span>{{ section.time }}</span>
+                    </div>
+                    <ul>
+                      {% for detail in section.details %}
+                        <li>
+                          <span class="subject">{{ detail.subject }}</span>
+                          <span class="description">{{ detail.details }}</span>
+                          <span class="grade">{{ detail.grade }}</span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="empty-schedule-note">Schedule not yet recorded for this teacher.</p>
+          {% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+</section>
+{% endblock %}

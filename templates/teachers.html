@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <p class="eyebrow">Teacher Schedules</p>
+    <h1>Instant visibility across all departments</h1>
+    <p class="lede">
+      Each card below keeps count of grade levels, total courses, and highlights whether the teacher
+      serves middle or high school. Use the filters to narrow down to a type or run a quick availability lookup.
+    </p>
+    <div class="stat-grid">
+      <article class="stat-card">
+        <span>Total</span>
+        <strong>{{ stats.total_teachers }}</strong>
+        <p>Teachers in roster</p>
+      </article>
+      <article class="stat-card">
+        <span>Middle</span>
+        <strong>{{ stats.middle }}</strong>
+        <p>Middle school leads</p>
+      </article>
+      <article class="stat-card">
+        <span>High</span>
+        <strong>{{ stats.high }}</strong>
+        <p>High school leads</p>
+      </article>
+      <article class="stat-card">
+        <span>General</span>
+        <strong>{{ stats.general }}</strong>
+        <p>Support / floating</p>
+      </article>
+    </div>
+  </div>
+  <div class="availability-card">
+    <h2>Check teacher availability</h2>
+    <form id="availability-form" class="availability-form" onsubmit="return false;">
+      <label for="day-select">Day</label>
+      <select id="day-select" name="day">
+        {% for code, label in days.items() %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label for="period-select">Period</label>
+      <select id="period-select" name="period">
+        {% for period in period_options %}
+        <option value="{{ period }}">{{ period }}</option>
+        {% endfor %}
+      </select>
+      <button id="check-availability" type="button">Run availability check</button>
+    </form>
+    <div id="availability-result" class="availability-result">
+      <p>Select a period and day to show live availability.</p>
+    </div>
+  </div>
+  <div class="print-cta">
+    <a class="print-link" href="{{ url_for('print_all') }}">
+      Print all schedules
+    </a>
+    <p class="print-note">Opens a printable page that can be saved as a single PDF.</p>
+  </div>
+</section>
+
+<section class="filters">
+  <div class="filter-row">
+    <input id="teacher-search" type="text" placeholder="Quick search teacher name" />
+    <select id="type-filter">
+      <option value="all">All teachers</option>
+      <option value="Middle School">Middle School</option>
+      <option value="High School">High School</option>
+      <option value="Middle & High School">Middle & High School</option>
+      <option value="General">General</option>
+    </select>
+  </div>
+</section>
+
+<section class="teacher-grid" id="teacher-grid">
+  {% for teacher in teachers %}
+    <article
+      class="teacher-card"
+      data-teacher-type="{{ teacher.level_label }}"
+      data-teacher-name="{{ teacher.name | lower }}"
+    >
+      <header>
+        <h3>
+          <a href="{{ url_for('teacher_detail', slug=teacher.slug) }}">{{ teacher.name }}</a>
+        </h3>
+        <span class="grade-badge">{{ teacher.primary_class }}</span>
+      </header>
+      <p class="teacher-subject">{{ teacher.subject }}</p>
+      <p class="teacher-meta">{{ teacher.level_label }} · {{ teacher.day_count }} days a week</p>
+      <p class="teacher-courses">{{ teacher.course_total }} courses</p>
+      <a class="detail-link" href="{{ url_for('teacher_detail', slug=teacher.slug) }}">View schedule</a>
+    </article>
+  {% endfor %}
+</section>
+
+<script>
+  const escapeHTML = (value) => {
+    if (!value) return "";
+    return value
+      .toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  };
+
+  const searchInput = document.querySelector("#teacher-search");
+  const typeFilter = document.querySelector("#type-filter");
+  const cards = document.querySelectorAll(".teacher-card");
+
+  const filterCards = () => {
+    const searchTerm = searchInput.value.toLowerCase();
+    const selectedType = typeFilter.value;
+    cards.forEach((card) => {
+      const matchesTerm = card.dataset.teacherName.includes(searchTerm);
+      const matchesType = selectedType === "all" || card.dataset.teacherType === selectedType;
+      card.style.display = matchesTerm && matchesType ? "block" : "none";
+    });
+  };
+
+  searchInput.addEventListener("input", filterCards);
+  typeFilter.addEventListener("change", filterCards);
+
+  const availabilityResult = document.querySelector("#availability-result");
+  document.querySelector("#check-availability").addEventListener("click", async () => {
+    const day = document.querySelector("#day-select").value;
+    const period = document.querySelector("#period-select").value;
+    availabilityResult.innerHTML = "<p>Looking up availability…</p>";
+    try {
+      const response = await fetch(`/api/availability?day=${encodeURIComponent(day)}&period=${encodeURIComponent(period)}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to fetch availability");
+      }
+      const available = payload.available || [];
+      const occupied = payload.occupied || [];
+      const periodLabel = escapeHTML(payload.period || period);
+      const dayLabel = escapeHTML(payload.day || day);
+      availabilityResult.innerHTML = `
+        <p class="availability-heading">
+          ${available.length} teacher(s) free • ${occupied.length} scheduled for ${periodLabel} (${dayLabel})
+        </p>
+        <div class="availability-lists">
+          <div>
+            <h4>Available</h4>
+            <ul>${available
+              .map((t) => `<li>${escapeHTML(t.name)} · ${escapeHTML(t.level_label)}</li>`)
+              .join("")}</ul>
+          </div>
+          <div>
+            <h4>Booked</h4>
+            <ul>${occupied
+              .map(
+                (o) =>
+                  `<li>${escapeHTML(o.name)} · ${escapeHTML(o.subject)} · ${escapeHTML(o.details)}</li>`
+              )
+              .join("")}</ul>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      availabilityResult.innerHTML = `<p class="error">${err.message}</p>`;
+    }
+  });
+</script>
+{% endblock %}

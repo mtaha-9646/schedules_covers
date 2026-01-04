@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="teacher-detail">
+  <div class="detail-heading">
+    <div>
+      <p class="eyebrow">{{ teacher.level_label }}</p>
+      <h1>{{ teacher.name }}</h1>
+      <p class="detail-subtitle">
+        {{ teacher.subject }} · {{ teacher.course_total }} courses · {{ teacher.primary_class }}
+      </p>
+      <p class="detail-meta">Schedule spans {{ teacher.day_count }} days, email {{ teacher.email }}</p>
+    </div>
+    <div class="detail-actions">
+      <button onclick="window.print()" class="print-button">Print schedule</button>
+      <a class="back-link" href="{{ url_for('index') }}">← Back to roster</a>
+    </div>
+  </div>
+
+  <section class="schedule-section">
+    {% if schedule %}
+      {% for day in schedule %}
+        <article class="day-card">
+          <header>
+            <div>
+              <p class="day-label">{{ day.label }}</p>
+              <p class="day-count">
+                {{ day.scheduled_count }} scheduled period(s)
+                <span class="day-free">
+                  · {{ day.free_periods }} free of {{ day.max_periods }}
+                </span>
+              </p>
+            </div>
+          </header>
+          <div class="period-grid">
+            {% if day.sections %}
+              {% for section in day.sections %}
+                <div class="period-card">
+                  <div class="period-title">
+                    <strong>{{ section.period }}</strong>
+                    <span>{{ section.time }}</span>
+                  </div>
+                  <div class="period-details">
+                    {% for class_info in section.details %}
+                      <div class="class-line">
+                        <span class="class-subject">{{ class_info.subject }}</span>
+                        <span class="class-description">{{ class_info.details }}</span>
+                        <span class="grade-tag">{{ class_info.grade }}</span>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <p class="empty-day-note">
+                No scheduled periods this day; {{ day.free_periods }} of {{ day.max_periods }} periods free.
+              </p>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p class="empty-state">This teacher currently has no scheduled periods.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="covers-page">
+  <header class="covers-header">
+    <h1>Leave Covers</h1>
+    <p>
+      Use this panel to confirm incoming leave approvals, retry the webhook manually, and copy
+      the request payload for the downstream system that originates those webhooks.
+    </p>
+  </header>
+
+  <section class="covers-section">
+    <h2>Recorded leave requests</h2>
+    <div id="covers-list" class="covers-list">
+      <p>Loading recorded covers…</p>
+    </div>
+  </section>
+
+  <section class="covers-section">
+    <h2>Manual webhook test</h2>
+    <form id="covers-form" class="covers-form">
+      <label>
+        Request ID
+        <input name="request_id" type="text" placeholder="manual-123" />
+      </label>
+      <label>
+        Teacher
+        <input name="teacher" type="text" placeholder="Jane Doe" required />
+      </label>
+      <label>
+        Leave Type
+        <input name="leave_type" type="text" placeholder="planned" />
+      </label>
+      <label>
+        Leave Date
+        <input name="leave_date" type="date" />
+      </label>
+      <label>
+        Status
+        <input name="status" type="text" placeholder="approved" />
+      </label>
+      <label>
+        Reason
+        <input name="reason" type="text" placeholder="conference" />
+      </label>
+      <label>
+        Optional webhook secret header
+        <input name="secret" type="text" placeholder="secret value" />
+      </label>
+      <button type="submit">Send test request</button>
+    </form>
+    <div id="webhook-response" class="webhook-response"></div>
+    <div class="request-payload-wrapper">
+      <div class="request-payload-header">
+        <strong>Payload ready to copy</strong>
+        <button id="copy-request-button" type="button">Copy to clipboard</button>
+      </div>
+      <pre id="request-payload" class="request-payload">No payload yet.</pre>
+    </div>
+  </section>
+</section>
+
+<script>
+  const coversList = document.querySelector("#covers-list");
+  const responsePanel = document.querySelector("#webhook-response");
+  const payloadDisplay = document.querySelector("#request-payload");
+  const copyButton = document.querySelector("#copy-request-button");
+
+  const renderCovers = async () => {
+    coversList.innerHTML = "<p>Loading recorded covers…</p>";
+    try {
+      const response = await fetch("/api/covers");
+      if (!response.ok) {
+        throw new Error("Unable to load covers");
+      }
+      const data = await response.json();
+      const entries = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
+      if (!entries.length) {
+        coversList.innerHTML = "<p>No cover records yet.</p>";
+        return;
+      }
+      coversList.innerHTML = entries
+        .map(([date, rows]) => {
+          return `
+            <article class="cover-card">
+              <header>
+                <strong>${escapeHTML(date)}</strong>
+                <span>${rows.length} request(s)</span>
+              </header>
+              <ul>
+                ${rows
+                  .map((row) => {
+                    const teacher = escapeHTML(row.teacher);
+                    const status = escapeHTML(row.status || "unknown");
+                    const leaveType = escapeHTML(row.leave_type || "-");
+                    const reason = escapeHTML(row.reason || "no reason");
+                    const forwardStatus = escapeHTML(row.forward_status || "pending");
+                    const forwardDetails = escapeHTML(row.forward_response || "no response yet");
+                    return `
+                      <li>
+                        <span class="cover-teacher">${teacher}</span>
+                        <span class="cover-status">${status}</span>
+                        <span class="cover-type">${leaveType}</span>
+                        <span class="cover-reason">${reason}</span>
+                        <span class="cover-forward" title="${forwardDetails}">
+                          ${forwardStatus}
+                        </span>
+                      </li>
+                    `;
+                  })
+                  .join("")}
+              </ul>
+            </article>
+          `;
+        })
+        .join("");
+    } catch (error) {
+      coversList.innerHTML = `<p class="error">Failed to load covers: ${error.message}</p>`;
+    }
+  };
+
+  const form = document.querySelector("#covers-form");
+
+  const updatePayloadDisplay = (payload) => {
+    payloadDisplay.textContent = JSON.stringify(payload, null, 2);
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const payload = {
+      request_id: formData.get("request_id") || `manual-${Date.now()}`,
+      teacher: formData.get("teacher"),
+      leave_type: formData.get("leave_type") || "planned",
+      leave_date: formData.get("leave_date") || new Date().toISOString().slice(0, 10),
+      status: formData.get("status") || "pending",
+      reason: formData.get("reason") || "manual trigger",
+    };
+    updatePayloadDisplay(payload);
+    const headers = { "Content-Type": "application/json" };
+    const secret = formData.get("secret");
+    if (secret) {
+      headers["X-Leave-Webhook-Secret"] = secret;
+    }
+    responsePanel.textContent = "Sending…";
+    try {
+      const response = await fetch("/external/leave-approvals", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) {
+        responsePanel.innerHTML = `<p class="success">Success: ${body.status || "recorded"} (${body.teacher})</p>`;
+        await renderCovers();
+      } else {
+        responsePanel.innerHTML = `<p class="error">Error ${response.status}: ${body.error || "unexpected"}</p>`;
+      }
+    } catch (error) {
+      responsePanel.innerHTML = `<p class="error">Request failed: ${error.message}</p>`;
+    }
+  });
+
+  copyButton.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(payloadDisplay.textContent);
+      copyButton.textContent = "Copied!";
+      setTimeout(() => (copyButton.textContent = "Copy to clipboard"), 1200);
+    } catch {
+      copyButton.textContent = "Copy failed";
+      setTimeout(() => (copyButton.textContent = "Copy to clipboard"), 1200);
+    }
+  });
+
+  renderCovers();
+</script>
+{% endblock %}

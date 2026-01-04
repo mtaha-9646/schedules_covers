@@ -1,0 +1,21 @@
+{
+  "2026-01-05": [
+    {
+      "request_id": "r1",
+      "teacher": "Jane Doe",
+      "leave_type": "planned",
+      "leave_date": "2026-01-05",
+      "status": "approved",
+      "reason": "conference",
+      "recorded_at": "2026-01-04T16:35:18.426789",
+      "payload": {
+        "leave_date": "2026-01-05",
+        "leave_type": "planned",
+        "reason": "conference",
+        "request_id": "r1",
+        "status": "approved",
+        "teacher": "Jane Doe"
+      }
+    }
+  ]
+}
