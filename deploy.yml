@@ -1,0 +1,14 @@
+name: Trigger Deploy
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call deploy endpoint
+        run: |
+          curl -X POST "${{ secrets.DEPLOY_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Secret: ${{ secrets.DEPLOY_SECRET }}"
