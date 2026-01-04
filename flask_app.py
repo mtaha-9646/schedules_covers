@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 
+import subprocess
+
 from flask import Flask, abort, jsonify, render_template, request
 
 from covers_service import CoversManager
@@ -10,6 +12,8 @@ from schedule_service import DAY_LABELS, ORDERED_PERIODS, ScheduleManager
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "schedules.xlsx")
 LEAVE_WEBHOOK_SECRET = os.getenv("LEAVE_WEBHOOK_SECRET")
+DEPLOY_WEBHOOK_SECRET = os.getenv("DEPLOY_WEBHOOK_SECRET")
+DEPLOY_SCRIPT = os.path.join(BASE_DIR, "deploy.sh")
 
 app = Flask(__name__)
 manager = ScheduleManager(DATA_FILE)
@@ -95,6 +99,51 @@ def covers_list():
 def covers_absent():
     records = covers_manager.get_all_records()
     return render_template("covers_absent.html", records=records)
+
+
+@app.route("/internal/deploy", methods=["POST"])
+def trigger_deploy():
+    if not os.path.exists(DEPLOY_SCRIPT):
+        app.logger.error("Deploy script missing at %s", DEPLOY_SCRIPT)
+        return jsonify({"error": "deploy script missing"}), 404
+    if DEPLOY_WEBHOOK_SECRET:
+        provided = request.headers.get("X-Deploy-Secret")
+        if provided != DEPLOY_WEBHOOK_SECRET:
+            app.logger.warning("Unauthorized deploy request")
+            return jsonify({"error": "unauthorized"}), 403
+    app.logger.info("Deploy trigger received, running %s", DEPLOY_SCRIPT)
+    try:
+        completed = subprocess.run(
+            ["/bin/bash", DEPLOY_SCRIPT],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.CalledProcessError as exc:
+        output = (exc.stdout or "") + (exc.stderr or "")
+        app.logger.error("Deploy script failed (%s): %s", exc.returncode, output)
+        return (
+            jsonify(
+                {
+                    "error": "deploy failed",
+                    "exit_code": exc.returncode,
+                    "output": output,
+                }
+            ),
+            500,
+        )
+    except subprocess.TimeoutExpired:
+        app.logger.error("Deploy script timed out")
+        return jsonify({"error": "deploy timed out"}), 504
+    app.logger.info("Deploy script completed successfully")
+    return jsonify(
+        {
+            "status": "deployed",
+            "output": completed.stdout,
+            "errors": completed.stderr,
+        }
+    )
 
 
 @app.route("/print/all")
