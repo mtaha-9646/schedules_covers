@@ -21,6 +21,7 @@ app = Flask(__name__)
 manager = ScheduleManager(DATA_FILE)
 covers_manager = CoversManager()
 assignment_manager = CoverAssignmentManager(manager, covers_manager)
+assignment_manager.sync_existing_records()
 
 
 @app.route("/")

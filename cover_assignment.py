@@ -261,7 +261,13 @@ class CoverAssignmentManager:
         cover: dict[str, Any],
     ) -> None:
         class_subject = detail.get("subject") or record.get("subject") or "General"
+        slot_key = self._slot_key_for_detail(detail)
+        request_id = record.get("request_id")
+        if self._assignment_exists(date_key, request_id, slot_key):
+            return
         assignment = {
+            "slot_key": slot_key,
+            "request_id": request_id,
             "date": date_key,
             "absent_teacher": record["teacher"],
             "absent_email": record["teacher_email"],
@@ -289,6 +295,27 @@ class CoverAssignmentManager:
         }
         self.assignments.setdefault(date_key, []).append(assignment)
         self._save_assignments()
+
+    def _assignment_exists(
+        self,
+        date_key: str,
+        request_id: Optional[str],
+        slot_key: str,
+    ) -> bool:
+        if not request_id or not slot_key:
+            return False
+        for entry in self.assignments.get(date_key, []):
+            if entry.get("request_id") == request_id and entry.get("slot_key") == slot_key:
+                return True
+        return False
+
+    def _slot_key_for_detail(self, detail: dict[str, Any]) -> str:
+        if not detail:
+            return ""
+        period_label = str(detail.get("period_label") or detail.get("period_raw") or "General").strip()
+        period_raw = str(detail.get("period_raw") or detail.get("period_label") or "General").strip()
+        class_time = str(detail.get("time") or "").strip()
+        return f"{period_label}|{period_raw}|{class_time}"
 
     def update_assignment(
         self, date_key: str, index: int, updates: dict[str, Any]
@@ -353,6 +380,11 @@ class CoverAssignmentManager:
         if not result:
             result.add(CYCLE_GENERAL)
         return result
+
+    def sync_existing_records(self) -> None:
+        for records in self.covers_manager.get_all_records().values():
+            for record in records:
+                self.assign_for_record(record)
 
     def get_assignments(self) -> dict[str, list[dict[str, Any]]]:
         return self.assignments.copy()
