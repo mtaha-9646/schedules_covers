@@ -90,6 +90,9 @@ class CoversManager:
             "recorded_at": datetime.utcnow().isoformat(),
             "payload": payload,
         }
+        for key in ("teacher_slug", "subject", "level_label"):
+            if payload.get(key) is not None:
+                entry[key] = payload[key]
         return entry
 
     def _normalize_date(self, raw_date: Optional[str | datetime]) -> str:
