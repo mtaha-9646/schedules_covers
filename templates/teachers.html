@@ -92,7 +92,7 @@
         </div>
         <p class="text-sm text-slate-500">{{ teacher.subject }}</p>
       </div>
-      <p class="text-sm text-slate-500">{{ teacher.level_label }} · {{ teacher.day_count }} day(s) · {{ teacher.course_total }} courses</p>
+      <p class="text-sm text-slate-500">{{ teacher.level_label }} &middot; {{ teacher.day_count }} day(s) &middot; {{ teacher.course_total }} courses</p>
       <a class="text-sm font-semibold text-emerald-600 hover:text-emerald-500" href="{{ url_for('teacher_detail', slug=teacher.slug) }}">View schedule ?</a>
     </article>
     {% endfor %}
@@ -129,12 +129,12 @@
       const available = payload.available || [];
       const occupied = payload.occupied || [];
       availabilityResult.innerHTML = `
-        <p class="text-sm font-semibold text-emerald-600">${available.length} free · ${occupied.length} booked · ${payload.period}</p>
+        <p class="text-sm font-semibold text-emerald-600">${available.length} free &middot; ${occupied.length} booked &middot; ${payload.period}</p>
         <div class="mt-3 space-y-2 text-sm text-slate-600">
           <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Available</p>
-          <p>${available.map((t) => `${t.name} · ${t.level_label}`).join(" &middot; ") || "None"}</p>
+          <p>${available.map((t) => `${t.name} &middot; ${t.level_label}`).join(" &middot; ") || "None"}</p>
           <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Occupied</p>
-          <p>${occupied.map((o) => `${o.name} · ${o.subject}`).join(" &middot; ") || "None"}</p>
+          <p>${occupied.map((o) => `${o.name} &middot; ${o.subject}`).join(" &middot; ") || "None"}</p>
         </div>
       `;
     } catch (error) {

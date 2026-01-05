@@ -7,8 +7,8 @@
       <div>
         <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ teacher.level_label }}</p>
         <h1 class="text-3xl font-semibold text-slate-900">{{ teacher.name }}</h1>
-        <p class="text-sm text-slate-500">{{ teacher.subject }} · {{ teacher.course_total }} courses · {{ teacher.primary_class }}</p>
-        <p class="text-sm text-slate-500">Email: {{ teacher.email }} · {{ teacher.day_count }} active days</p>
+        <p class="text-sm text-slate-500">{{ teacher.subject }} &middot; {{ teacher.course_total }} courses &middot; {{ teacher.primary_class }}</p>
+        <p class="text-sm text-slate-500">Email: {{ teacher.email }} &middot; {{ teacher.day_count }} active days</p>
       </div>
       <div class="flex gap-3">
         <button onclick="window.print()" class="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400">Print schedule</button>
@@ -26,7 +26,7 @@
           <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ day.label }}</p>
           <h2 class="text-2xl font-semibold text-slate-900">{{ day.scheduled_count }} period(s)</h2>
         </div>
-        <span class="text-sm text-slate-500">Free · {{ day.free_periods }} / {{ day.max_periods }}</span>
+        <span class="text-sm text-slate-500">Free &middot; {{ day.free_periods }} / {{ day.max_periods }}</span>
       </div>
       {% if day.sections %}
       <div class="mt-4 grid gap-4 md:grid-cols-2">

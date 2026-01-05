@@ -8,7 +8,7 @@
         <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Printable export</p>
         <h1 class="text-2xl font-semibold text-slate-900">All teacher schedules</h1>
         <p class="text-sm text-slate-500">
-          Use your browser’s print dialog and select “Save as PDF” to generate a portable copy for meetings or archives.
+          Use your browser's print dialog and select "Save as PDF" to generate a portable copy for meetings or archives.
         </p>
       </div>
       <button onclick="window.print()" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
@@ -24,10 +24,10 @@
         <div>
           <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ entry.meta.level_label }}</p>
           <h2 class="text-xl font-semibold text-slate-900">{{ entry.meta.name }}</h2>
-          <p class="text-sm text-slate-500">{{ entry.meta.subject }} · {{ entry.meta.primary_class }}</p>
+          <p class="text-sm text-slate-500">{{ entry.meta.subject }} &middot; {{ entry.meta.primary_class }}</p>
         </div>
         <div class="text-right text-sm text-slate-500">
-          <p>{{ entry.meta.course_total }} courses · {{ entry.meta.day_count }} days</p>
+          <p>{{ entry.meta.course_total }} courses &middot; {{ entry.meta.day_count }} days</p>
         </div>
       </header>
       {% if entry.schedule %}
@@ -39,7 +39,7 @@
               <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ day.code }}</p>
               <h3 class="text-lg font-semibold text-slate-900">{{ day.label }}</h3>
             </div>
-            <span class="text-sm text-slate-500">Free {{ day.free_periods }} · Max {{ day.max_periods }}</span>
+            <span class="text-sm text-slate-500">Free {{ day.free_periods }} &middot; Max {{ day.max_periods }}</span>
           </div>
           {% if day.sections %}
           <div class="grid gap-3 md:grid-cols-2">

@@ -47,12 +47,12 @@
                   <td class="px-4 py-3">
                     <p class="font-semibold text-slate-900">{{ entry.class_subject or "General" }}</p>
                     {% if entry.period_label or entry.period_raw %}
-                    <p class="text-[11px] text-slate-400">{{ entry.period_label or entry.period_raw }} · {{ entry.class_time or "" }}</p>
+                    <p class="text-[11px] text-slate-400">{{ entry.period_label or entry.period_raw }} &middot; {{ entry.class_time or "" }}</p>
                     {% endif %}
                   </td>
                   <td class="px-4 py-3">
                     <p class="font-semibold text-slate-900">{{ entry.cover_teacher }}</p>
-                    <p class="text-[11px] text-slate-400">{{ entry.cover_subject or "General" }} · {{ entry.cover_email }}</p>
+                    <p class="text-[11px] text-slate-400">{{ entry.cover_subject or "General" }} &middot; {{ entry.cover_email }}</p>
                   </td>
                   <td class="px-4 py-3 text-slate-900">{{ entry.status or "pending" }}</td>
                   <td class="px-4 py-3 text-[11px] text-slate-500">{{ entry.cover_free_periods }} free / {{ entry.cover_max_periods }} max</td>

@@ -23,7 +23,7 @@
           <h2 class="text-2xl font-semibold text-slate-900">{{ date }}</h2>
         </div>
         <div class="text-sm text-slate-500">
-          <p>{{ entries|selectattr("status", "equalto", "approved")|list|length }} approved · {{ entries|selectattr("status", "equalto", "pending")|list|length }} pending</p>
+          <p>{{ entries|selectattr("status", "equalto", "approved")|list|length }} approved &middot; {{ entries|selectattr("status", "equalto", "pending")|list|length }} pending</p>
           <p>{{ entries|selectattr("forward_status", "equalto", "pending")|list|length }} waiting for forward</p>
         </div>
       </div>
@@ -52,7 +52,7 @@
                 <p class="text-[11px] text-slate-400">{{ entry.leave_type or "unspecified" }}</p>
               </td>
               <td class="px-4 py-3">
-                <p class="font-semibold text-slate-900">{{ entry.leave_start }} → {{ entry.leave_end }}</p>
+                <p class="font-semibold text-slate-900">{{ entry.leave_start }} &rarr; {{ entry.leave_end }}</p>
                 <p class="text-[11px] text-slate-400">{{ entry.submitted_at or "submitted unknown" }}</p>
               </td>
               <td class="px-4 py-3">

@@ -78,7 +78,7 @@
               <div class="grid grid-cols-[1fr_auto] gap-2">
                 <div>
                   <p class="font-semibold">${escapeHTML(row.teacher)}</p>
-                  <p>${escapeHTML(row.leave_type || "")} · ${escapeHTML(row.status || "")}</p>
+                  <p class="text-xs text-slate-500">${escapeHTML(row.leave_type || "")} &middot; ${escapeHTML(row.status || "")}</p>
                 </div>
                 <div class="text-right text-[11px] uppercase tracking-[0.3em] text-slate-500">${escapeHTML(row.request_id)}</div>
               </div>
