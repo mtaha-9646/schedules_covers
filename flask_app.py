@@ -34,6 +34,13 @@ def index():
     )
 
 
+@app.route("/refresh-schedules")
+def refresh_schedules():
+    manager.reload_data()
+    app.logger.info("Schedule data reloaded from %s", DATA_FILE)
+    return redirect(url_for("index"))
+
+
 @app.route("/teachers/<slug>")
 def teacher_detail(slug: str):
     info = manager.get_schedule_for_teacher(slug)

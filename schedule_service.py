@@ -61,6 +61,14 @@ class ScheduleManager:
         self._teachers = self._build_teacher_index()
         self._email_index = self._build_email_index()
 
+    def reload_data(self) -> None:
+        """Reload the schedule data from disk, rebuilding teacher metadata."""
+        self._df = self._load_schedule()
+        self._course_count_column = self._select_course_count_column()
+        self._manifest = self._load_teacher_manifest()
+        self._teachers = self._build_teacher_index()
+        self._email_index = self._build_email_index()
+
     def _load_schedule(self) -> pd.DataFrame:
         df = pd.read_excel(self.excel_path)
         df = df.dropna(subset=["Teacher"])
