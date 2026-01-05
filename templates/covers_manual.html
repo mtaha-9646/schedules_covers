@@ -2,16 +2,18 @@
 
 {% block content %}
 <section class="covers-assignments-page">
-    <header class="covers-header">
-      <h1>Assigned Covers</h1>
-      <p>Automatically generated cover assignments for every approved leave. Each row represents the teacher who will cover a specific absent colleague on a given day.</p>
+  <header class="covers-header">
+    <div>
+      <h1>Manual Covers Review</h1>
       <p class="covers-note">
-        Use this list to confirm which teacher is covering whom, including how many free periods they had and when the assignment was made.
+        Review the automatically assigned covers, print the list for admin validation, or edit assignments manually before confirming compatibility.
       </p>
-      <p class="covers-note">
-        <a href="{{ url_for('covers_manual') }}">Review and edit manual assignments</a>
-      </p>
-    </header>
+    </div>
+    <div class="detail-actions">
+      <button onclick="window.print()" class="print-button">Print review</button>
+      <a class="back-link" href="{{ url_for('covers_assignments') }}">Back to auto assignments</a>
+    </div>
+  </header>
 
   <section class="covers-section">
     {% if assignments %}
@@ -20,7 +22,7 @@
           <header>
             <div>
               <strong>{{ date }}</strong>
-              <p>{{ rows|length }} assignment{{ rows|length > 1 and "s" or "" }}</p>
+              <p>{{ rows|length }} cover assignment{{ rows|length > 1 and "s" or "" }}</p>
             </div>
           </header>
           <table class="covers-table">
@@ -31,11 +33,9 @@
                 <th>Cover</th>
                 <th>Cover Subject</th>
                 <th>Status</th>
-                <th>Leave Type</th>
                 <th>Range</th>
-                <th>Submitted</th>
-                <th>Cover Load</th>
-                <th>Assigned At</th>
+                <th>Load</th>
+                <th>Edit</th>
               </tr>
             </thead>
             <tbody>
@@ -55,7 +55,7 @@
                       <small>
                         {{ period_label }}
                         {% if entry.class_time %}
-                          &middot; {{ entry.class_time }}
+                          · {{ entry.class_time }}
                         {% endif %}
                       </small><br />
                     {% endif %}
@@ -69,11 +69,11 @@
                   </td>
                   <td>{{ entry.cover_subject or "General" }}</td>
                   <td>{{ entry.status or "pending" }}</td>
-                  <td>{{ entry.leave_type or "unspecified" }}</td>
                   <td>{{ entry.leave_start }} &mdash; {{ entry.leave_end }}</td>
-                  <td>{{ entry.submitted_at }}</td>
                   <td>{{ entry.cover_free_periods }} / {{ entry.cover_max_periods }} free</td>
-                  <td>{{ entry.cover_assigned_at }}</td>
+                  <td>
+                    <a href="{{ url_for('covers_manual_edit', date_key=date, item_idx=loop.index0) }}">Edit</a>
+                  </td>
                 </tr>
               {% endfor %}
             </tbody>

@@ -4,7 +4,8 @@ import os
 
 import subprocess
 
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from typing import Any
 
 from cover_assignment import CoverAssignmentManager
 from covers_service import CoversManager
@@ -124,6 +125,46 @@ def covers_absent():
 def covers_assignments():
     assignments = assignment_manager.get_assignments()
     return render_template("covers_assignments.html", assignments=assignments)
+
+
+@app.route("/covers/manual")
+def covers_manual():
+    assignments = assignment_manager.get_assignments()
+    return render_template("covers_manual.html", assignments=assignments)
+
+
+@app.route("/covers/manual/edit/<path:date_key>/<int:item_idx>", methods=["GET", "POST"])
+def covers_manual_edit(date_key: str, item_idx: int):
+    assignments = assignment_manager.get_assignments()
+    rows = assignments.get(date_key)
+    if not rows or item_idx < 0 or item_idx >= len(rows):
+        abort(404)
+    entry = rows[item_idx]
+    if request.method == "POST":
+        updates: dict[str, Any] = {}
+        cover_slug = request.form.get("cover_slug")
+        if cover_slug:
+            updates["cover_slug"] = cover_slug.strip()
+        for field in (
+            "cover_subject",
+            "status",
+            "class_subject",
+            "class_details",
+            "class_time",
+            "period_label",
+            "period_raw",
+        ):
+            updates[field] = request.form.get(field) or ""
+        success = assignment_manager.update_assignment(date_key, item_idx, updates)
+        if not success:
+            abort(404)
+        return redirect(url_for("covers_manual"))
+    teachers = manager.teacher_cards
+    return render_template(
+        "covers_manual_edit.html",
+        entry=entry,
+        teachers=teachers,
+    )
 
 
 @app.route("/internal/deploy", methods=["POST"])

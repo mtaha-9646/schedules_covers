@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="teacher-detail">
+  <div class="detail-heading">
+    <div>
+      <p class="eyebrow">Review cover</p>
+      <h1>Edit cover assignment</h1>
+      <p>
+        {{ entry.absent_teacher }} &mdash; {{ entry.class_subject or entry.subject or "General" }}
+        <br />
+        {{ entry.leave_start }} &mdash; {{ entry.leave_end }}
+      </p>
+    </div>
+    <div class="detail-actions">
+      <button onclick="window.print()" class="print-button">Print</button>
+      <a class="back-link" href="{{ url_for('covers_manual') }}">Back to manual review</a>
+    </div>
+  </div>
+
+  <form class="cover-edit-form" method="post">
+    <div class="form-grid">
+      <label>
+        Cover teacher
+        <select name="cover_slug">
+          <option value="">Keep current</option>
+          {% for teacher in teachers %}
+            <option value="{{ teacher.slug }}" {% if teacher.slug == entry.cover_slug %}selected{% endif %}>
+              {{ teacher.name }} ({{ teacher.subject or "General" }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Cover subject
+        <input name="cover_subject" value="{{ entry.cover_subject or "" }}" />
+      </label>
+    </div>
+
+    <div class="form-grid">
+      <label>
+        Status
+        <input name="status" value="{{ entry.status or "" }}" />
+      </label>
+      <label>
+        Class subject
+        <input name="class_subject" value="{{ entry.class_subject or "" }}" />
+      </label>
+    </div>
+
+    <div class="form-grid">
+      <label>
+        Class details
+        <input name="class_details" value="{{ entry.class_details or "" }}" />
+      </label>
+      <label>
+        Class time
+        <input name="class_time" value="{{ entry.class_time or "" }}" />
+      </label>
+    </div>
+
+    <div class="form-grid">
+      <label>
+        Period label
+        <input name="period_label" value="{{ entry.period_label or "" }}" />
+      </label>
+      <label>
+        Period raw
+        <input name="period_raw" value="{{ entry.period_raw or "" }}" />
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="primary-button">Save changes</button>
+      <a href="{{ url_for('covers_manual') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
