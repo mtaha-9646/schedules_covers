@@ -1,16 +1,17 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
-  color-scheme: light dark;
-  --background: #06070f;
-  --surface: #0d111f;
-  --card: #1c1f2b;
-  --muted: #8d99a6;
-  --accent: #5ec4b5;
-  --accent-strong: #3bc5ff;
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #f5f5f5;
-  --shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+  color-scheme: light;
+  --bg: #f1f4f8;
+  --surface: #ffffff;
+  --muted: #5c6673;
+  --text: #0f1b2d;
+  --border: #dfe3ea;
+  --accent: #2563eb;
+  --accent-soft: #a5c6ff;
+  --success: #14b8a6;
+  --error: #ef4444;
+  --shadow: 0 18px 35px rgba(15, 27, 45, 0.08);
 }
 
 *,
@@ -22,195 +23,166 @@
 body {
   margin: 0;
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: var(--background);
+  background: var(--bg);
   color: var(--text);
-  line-height: 1.6;
+  min-height: 100vh;
 }
 
 a {
-  color: var(--accent-strong);
+  color: var(--accent);
   text-decoration: none;
 }
 
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: -999px;
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  transition: transform 0.2s ease;
+}
+
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(0);
+}
+
 .site-header {
-  padding: 1.5rem 3vw;
-  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--surface);
+  box-shadow: 0 8px 20px rgba(15, 27, 45, 0.08);
+  padding: 1rem 2rem;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
 }
 
 .brand {
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .tagline {
   margin: 0;
   color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.site-nav {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.site-nav a {
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.site-nav a:hover,
+.site-nav a:focus-visible {
+  border-color: var(--accent-soft);
+  background: rgba(37, 99, 235, 0.08);
+  outline: none;
+}
+
+.site-nav a.active {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
 }
 
 main {
-  padding: 0 3vw 4rem;
+  padding: 2rem 1rem 4rem;
+}
+
+.page-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.panel {
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 1.8rem;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.panel-heading {
+  margin-bottom: 1rem;
+}
+
+.panel-heading h2 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.panel-heading p {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
 }
 
 .hero-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
-  margin-top: 2rem;
-  background: linear-gradient(135deg, rgba(94, 196, 181, 0.1), rgba(59, 197, 255, 0.08));
-  padding: 2rem;
-  border-radius: 24px;
 }
 
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 0.75rem;
-  margin-bottom: 0.3rem;
-  color: var(--accent);
-}
-
-h1 {
-  margin-top: 0;
-  margin-bottom: 0.4rem;
-  font-size: clamp(2rem, 3vw, 2.6rem);
-}
-
-.lede {
-  color: var(--muted);
-  max-width: 40ch;
-  margin-bottom: 1rem;
+.hero-panel .panel {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(14, 165, 233, 0.07));
 }
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 1rem;
   margin-top: 1rem;
 }
 
 .stat-card {
-  background: var(--card);
+  background: rgba(255, 255, 255, 0.8);
   border-radius: 16px;
   padding: 1rem;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow);
 }
 
 .stat-card span {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .stat-card strong {
   display: block;
-  font-size: 1.6rem;
-  margin-top: 0.5rem;
-}
-
-.availability-card {
-  background: var(--surface);
-  border-radius: 20px;
-  padding: 1.5rem;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-}
-
-.availability-card h2 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-}
-
-.availability-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.availability-form label {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.availability-form select {
-  background: var(--card);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.6rem 0.9rem;
-  font-size: 0.95rem;
-}
-
-.availability-form button {
-  background: var(--accent);
-  border: none;
-  color: #04050a;
-  font-weight: 600;
-  padding: 0.8rem;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.availability-result {
-  background: var(--card);
-  border-radius: 14px;
-  padding: 0.7rem 1rem;
-  border: 1px solid var(--border);
-}
-
-.print-cta {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  align-items: flex-start;
-}
-
-.print-link {
-  background: var(--accent);
-  color: #030308;
-  padding: 0.9rem 1.2rem;
-  border-radius: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.print-note {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.availability-heading {
-  margin: 0;
-  font-size: 0.95rem;
-  margin-bottom: 0.6rem;
-}
-
-.availability-lists {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
-}
-
-.availability-lists h4 {
-  margin-bottom: 0.3rem;
-}
-
-.availability-lists ul {
-  list-style: none;
-  padding-left: 0;
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 1.8rem;
+  margin-top: 0.1rem;
 }
 
 .filters {
-  margin-top: 2rem;
+  background: var(--surface);
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  padding: 1rem;
 }
 
 .filter-row {
@@ -221,37 +193,139 @@ h1 {
 
 .filter-row input,
 .filter-row select {
-  flex: 1;
-  min-width: 200px;
-  padding: 0.8rem;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--text);
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  background: transparent;
+  flex: 1;
+  min-width: 180px;
 }
 
-.teacher-grid {
-  margin-top: 1.5rem;
+.lede {
+  color: var(--muted);
+  margin: 0;
+}
+
+.availability-card h2 {
+  margin-top: 0;
+  margin-bottom: 0.6rem;
+}
+
+.form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
+  margin-bottom: 1rem;
 }
 
-.teacher-card {
-  background: var(--card);
-  border-radius: 18px;
-  padding: 1.2rem;
-  border: 1px solid var(--border);
+.availability-form,
+.covers-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.8rem;
+}
+
+.availability-form label,
+.covers-form label {
+  font-size: 0.8rem;
+  color: var(--muted);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+}
+
+.availability-form input,
+.covers-form input,
+.availability-form select,
+.covers-form select,
+.availability-form button,
+.covers-form button {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 0.8rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: transparent;
+}
+
+.availability-form button,
+.covers-form button,
+.print-link,
+.primary-button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.availability-result,
+.webhook-response,
+.request-payload {
+  background: #f7f9fc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  font-family: "Source Code Pro", monospace;
+  font-size: 0.9rem;
+}
+
+.covers-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.covers-card,
+.print-teacher-card,
+.teacher-card {
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 1.4rem;
+  border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
 
-.teacher-card header {
+.covers-card header,
+.teacher-card header,
+.print-teacher-card header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.covers-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.covers-table th,
+.covers-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 0.6rem;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.covers-table th {
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.teacher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
 }
 
 .teacher-card h3 {
@@ -260,317 +334,191 @@ h1 {
 }
 
 .grade-badge {
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  background: rgba(94, 196, 181, 0.2);
-  padding: 0.3rem 0.7rem;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--accent);
+  padding: 0.25rem 0.65rem;
   border-radius: 999px;
-}
-
-.teacher-subject {
-  margin: 0;
-  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 .teacher-meta,
-.teacher-courses {
-  margin: 0;
-  font-size: 0.9rem;
+.teacher-courses,
+.covers-note {
+  color: var(--muted);
+  margin: 0.25rem 0 0;
 }
 
 .detail-link {
-  margin-top: auto;
-  align-self: flex-start;
+  margin-top: 1rem;
   font-weight: 600;
-}
-
-.teacher-detail {
-  margin-top: 2rem;
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(10, 129, 151, 0.1), transparent);
-  border-radius: 28px;
-}
-
-.print-all-page {
-  margin-top: 2rem;
-  padding: 2rem 0 4rem;
-}
-
-.print-all-header {
-  margin-bottom: 1.5rem;
-}
-
-.print-all-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  gap: 1.2rem;
-}
-
-.print-teacher-card {
-  background: var(--card);
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  padding: 1.2rem;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.print-teacher-card header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: baseline;
-}
-
-.print-schedule {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-}
-
-.print-day-block {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 0.9rem;
-}
-
-.print-day-label {
-  display: flex;
-  justify-content: space-between;
+  display: inline-flex;
   align-items: center;
-  font-size: 0.95rem;
-  color: var(--accent);
-}
-
-.print-period-row {
-  margin-top: 0.6rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 0.6rem 0.9rem;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.print-period-title {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-  margin-bottom: 0.4rem;
-  color: var(--accent-strong);
-}
-
-.print-period-row ul {
-  margin: 0;
-  padding-left: 1.2rem;
-  list-style: disc;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.print-period-row li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.print-period-row .subject {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.print-period-row .grade {
-  color: var(--accent-strong);
-}
-
-.empty-schedule-note {
-  margin: 0;
-  padding: 1rem;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px dashed rgba(255, 255, 255, 0.2);
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-@media print {
-  .hero-panel,
-  .filters,
-  .availability-card,
-  .print-cta,
-  .teacher-grid,
-  .availability-lists,
-  .detail-actions,
-  #availability-form,
-  #availability-result {
-    display: none;
-  }
-
-  main {
-    padding: 0;
-  }
-
-  .print-all-grid {
-    grid-template-columns: 1fr;
-  }
+  gap: 0.2rem;
 }
 
 .detail-heading {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  align-items: flex-start;
 }
 
-.detail-subtitle {
-  color: var(--accent-strong);
-  margin-top: 0;
+.detail-heading h1 {
+  margin: 0;
 }
 
+.detail-subtitle,
 .detail-meta {
   color: var(--muted);
-  margin-top: 0.2rem;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.print-button,
-.back-link {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.6rem 1rem;
-  color: var(--text);
-  font-weight: 600;
-}
-
-.print-button {
-  cursor: pointer;
-  background: var(--accent);
-  color: #050509;
-  border-color: transparent;
+  margin: 0.3rem 0 0;
 }
 
 .schedule-section {
-  margin-top: 2rem;
+  display: grid;
+  gap: 1rem;
 }
 
 .day-card {
-  background: var(--card);
-  border-radius: 20px;
-  padding: 1.2rem;
-  margin-bottom: 1rem;
+  background: #f7f9fc;
+  border-radius: 16px;
+  padding: 1rem;
   border: 1px solid var(--border);
 }
 
 .day-card header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-}
-
-.day-label {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.day-count {
-  margin: 0;
-  color: var(--muted);
+  align-items: center;
 }
 
 .period-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
   margin-top: 1rem;
 }
 
 .period-card {
-  border-radius: 16px;
+  background: var(--surface);
+  padding: 0.9rem;
+  border-radius: 12px;
   border: 1px solid var(--border);
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.02);
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.5rem;
 }
 
 .period-title {
   display: flex;
   justify-content: space-between;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--accent);
-}
-
-.period-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
 }
 
 .class-line {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.9rem;
+  gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .class-subject {
   font-weight: 600;
 }
 
-.class-description {
-  color: var(--muted);
-  flex: 1;
-  margin-left: 0.4rem;
-}
-
 .grade-tag {
-  font-size: 0.75rem;
-  background: rgba(59, 197, 255, 0.15);
-  padding: 0.3rem 0.6rem;
+  background: rgba(37, 99, 235, 0.15);
   border-radius: 999px;
-  color: var(--accent-strong);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--accent);
 }
 
-.empty-state {
-  padding: 1.5rem;
-  background: var(--card);
-  border-radius: 18px;
-  border: 1px dashed var(--border);
-  text-align: center;
+.covers-manual-list {
+  display: grid;
+  gap: 1rem;
 }
 
-@media print {
-  body {
-    color: #111;
-    background: #fff;
+.covers-manual-list table {
+  width: 100%;
+}
+
+.print-all-page {
+  margin-top: 0;
+}
+
+.print-all-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.print-teacher-card {
+  min-height: 100%;
+}
+
+.print-period-row {
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  margin-bottom: 0.75rem;
+}
+
+.request-payload-wrapper {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 1rem;
+}
+
+.request-payload {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.success {
+  color: var(--success);
+  margin: 0;
+}
+
+.error {
+  color: var(--error);
+  margin: 0;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.back-link,
+.print-button {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 0.6rem 1rem;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.print-button {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .site-header {
+    flex-direction: column;
+    gap: 0.6rem;
   }
 
-  .site-header,
-  .filters,
-  .availability-card,
-  .detail-actions,
-  .detail-heading button,
-  #availability-form,
-  #availability-result,
-  .detail-actions .back-link {
-    display: none;
-  }
-
-  .teacher-detail,
-  .day-card {
-    border: none;
-    box-shadow: none;
-    background: transparent;
-  }
-
-  .period-card {
-    border: 1px solid #ccc;
+  .site-nav {
+    justify-content: center;
   }
 }

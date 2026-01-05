@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="covers-assignments-page">
-  <header class="covers-header">
+<section class="covers-assignments-page panel">
+  <header class="covers-header panel-heading">
     <div>
       <h1>Manual Covers Review</h1>
       <p class="covers-note">
@@ -15,7 +15,7 @@
     </div>
   </header>
 
-  <section class="covers-section">
+  <section class="covers-section panel">
     {% if assignments %}
       {% for date, rows in assignments|dictsort %}
         <article class="cover-card">
@@ -25,7 +25,8 @@
               <p>{{ rows|length }} cover assignment{{ rows|length > 1 and "s" or "" }}</p>
             </div>
           </header>
-          <table class="covers-table">
+          <div class="table-responsive">
+            <table class="covers-table">
             <thead>
               <tr>
                 <th>Absent</th>
@@ -77,7 +78,8 @@
                 </tr>
               {% endfor %}
             </tbody>
-          </table>
+            </table>
+          </div>
         </article>
       {% endfor %}
     {% else %}

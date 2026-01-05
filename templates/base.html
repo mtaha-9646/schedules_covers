@@ -7,21 +7,22 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="site-header">
-      <div class="brand-row">
+      <div>
         <a class="brand" href="{{ url_for('index') }}">Charter Teacher Scheduler</a>
-        <p class="tagline">Live view of every teacher’s roaming schedule.</p>
+        <p class="tagline">The living roster and cover command center.</p>
       </div>
-      <nav class="site-nav">
-        <a href="{{ url_for('index') }}">Roster</a>
-        <a href="{{ url_for('covers_dashboard') }}">Covers</a>
-        <a href="{{ url_for('covers_absent') }}">Absences</a>
-        <a href="{{ url_for('covers_assignments') }}">Assignments</a>
-        <a href="{{ url_for('covers_manual') }}">Manual Review</a>
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a class="{{ 'active' if request.endpoint == 'index' else '' }}" href="{{ url_for('index') }}">Roster</a>
+        <a class="{{ 'active' if request.endpoint == 'covers_dashboard' else '' }}" href="{{ url_for('covers_dashboard') }}">Covers</a>
+        <a class="{{ 'active' if request.endpoint == 'covers_absent' else '' }}" href="{{ url_for('covers_absent') }}">Absences</a>
+        <a class="{{ 'active' if request.endpoint == 'covers_assignments' else '' }}" href="{{ url_for('covers_assignments') }}">Assignments</a>
+        <a class="{{ 'active' if request.endpoint == 'covers_manual' else '' }}" href="{{ url_for('covers_manual') }}">Manual Review</a>
         <a href="{{ url_for('refresh_schedules') }}">Refresh Data</a>
       </nav>
     </header>
-    <main>
+    <main id="main-content" class="page-shell">
       {% block content %}{% endblock %}
     </main>
   </body>

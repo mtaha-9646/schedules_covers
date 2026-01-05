@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="covers-absent-page">
-  <header class="covers-header">
+<section class="covers-absent-page panel">
+  <header class="covers-header panel-heading">
     <h1>Active Leave Submissions</h1>
     <p>
       Review every teacher who has been marked absent or excused so the covering team can respond.
@@ -20,7 +20,8 @@
               <p>{{ entries|length }} request{{ entries|length > 1 and "s" or "" }}</p>
             </div>
           </header>
-          <table class="covers-table">
+          <div class="table-responsive">
+            <table class="covers-table">
             <thead>
               <tr>
                 <th>Teacher</th>
@@ -53,7 +54,8 @@
                 </tr>
               {% endfor %}
             </tbody>
-          </table>
+            </table>
+          </div>
         </article>
       {% endfor %}
     {% else %}

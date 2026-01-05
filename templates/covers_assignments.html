@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="covers-assignments-page">
-    <header class="covers-header">
+<section class="covers-assignments-page panel">
+  <header class="covers-header panel-heading">
       <h1>Assigned Covers</h1>
       <p>Automatically generated cover assignments for every approved leave. Each row represents the teacher who will cover a specific absent colleague on a given day.</p>
       <p class="covers-note">
@@ -13,7 +13,7 @@
       </p>
     </header>
 
-  <section class="covers-section">
+  <section class="covers-section panel">
     {% if assignments %}
       {% for date, rows in assignments|dictsort %}
         <article class="cover-card">
@@ -23,7 +23,8 @@
               <p>{{ rows|length }} assignment{{ rows|length > 1 and "s" or "" }}</p>
             </div>
           </header>
-          <table class="covers-table">
+          <div class="table-responsive">
+            <table class="covers-table">
             <thead>
               <tr>
                 <th>Absent</th>
@@ -77,7 +78,8 @@
                 </tr>
               {% endfor %}
             </tbody>
-          </table>
+            </table>
+          </div>
         </article>
       {% endfor %}
     {% else %}
