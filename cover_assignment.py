@@ -97,12 +97,20 @@ class CoverAssignmentManager:
             details = self._details_for_teacher_on_day(absent_slug, day_code)
             if not details:
                 logger.warning(
-                    "No schedule data for %s on %s, skipping period-based cover assignment",
+                    "No schedule data for %s on %s, falling back to general cover slot",
                     record.get("teacher"),
                     date_key,
                 )
-                current += timedelta(days=1)
-                continue
+                details = [
+                    {
+                        "period_label": "General",
+                        "period_raw": "General",
+                        "subject": record_subject or "General",
+                        "grade": record.get("level_label"),
+                        "details": "Full day absence fallback",
+                        "time": "All day",
+                    }
+                ]
             is_friday = day_code == "Fr"
             hs_max_slots = 5 if is_friday else 7
             absent_emails = {
