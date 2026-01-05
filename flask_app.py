@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
 import os
-
 import subprocess
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
@@ -138,6 +138,26 @@ def covers_assignments():
 def covers_manual():
     assignments = assignment_manager.get_assignments()
     return render_template("covers_manual.html", assignments=assignments)
+
+
+@app.route("/covers/upcoming")
+def covers_upcoming():
+    assignments = assignment_manager.get_assignments()
+    today_key = date.today().isoformat()
+    upcoming_entries = sorted(
+        ((day, rows) for day, rows in assignments.items() if day >= today_key),
+        key=lambda item: item[0],
+    )
+    upcoming = [
+        {"date": day, "rows": rows, "subjects": sorted({row.get("class_subject") or row.get("subject") or "General" for row in rows})}
+        for day, rows in upcoming_entries
+    ]
+    total_covers = sum(len(item["rows"]) for item in upcoming)
+    return render_template(
+        "covers_upcoming.html",
+        upcoming=upcoming,
+        total_covers=total_covers,
+    )
 
 
 @app.route("/covers/manual/edit/<path:date_key>/<int:item_idx>", methods=["GET", "POST"])

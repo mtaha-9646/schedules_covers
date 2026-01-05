@@ -1,78 +1,59 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="teacher-detail">
-  <div class="detail-heading">
-    <div>
-      <p class="eyebrow">Review cover</p>
-      <h1>Edit cover assignment</h1>
-      <p>
-        {{ entry.absent_teacher }} &mdash; {{ entry.class_subject or entry.subject or "General" }}
-        <br />
-        {{ entry.leave_start }} &mdash; {{ entry.leave_end }}
-      </p>
-    </div>
-    <div class="detail-actions">
-      <button onclick="window.print()" class="print-button">Print</button>
-      <a class="back-link" href="{{ url_for('covers_manual') }}">Back to manual review</a>
+<section class="space-y-6">
+  <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Edit cover</p>
+        <h1 class="text-2xl font-semibold text-slate-900">{{ entry.absent_teacher }} · {{ entry.class_subject or entry.subject or "General" }}</h1>
+        <p class="text-sm text-slate-500">{{ date_key }} · {{ entry.period_label or entry.period_raw }}</p>
+      </div>
+      <a href="{{ url_for('covers_manual') }}" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Back to review</a>
     </div>
   </div>
 
-  <form class="cover-edit-form" method="post">
-    <div class="form-grid">
-      <label>
-        Cover teacher
-        <select name="cover_slug">
+  <form class="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow" method="post">
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="text-sm font-semibold text-slate-600">Cover teacher
+        <select name="cover_slug" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2">
           <option value="">Keep current</option>
           {% for teacher in teachers %}
-            <option value="{{ teacher.slug }}" {% if teacher.slug == entry.cover_slug %}selected{% endif %}>
-              {{ teacher.name }} ({{ teacher.subject or "General" }})
-            </option>
+          <option value="{{ teacher.slug }}" {% if teacher.slug == entry.cover_slug %}selected{% endif %}>{{ teacher.name }} · {{ teacher.subject or "General" }}</option>
           {% endfor %}
         </select>
       </label>
-      <label>
-        Cover subject
-        <input name="cover_subject" value="{{ entry.cover_subject or "" }}" />
+      <label class="text-sm font-semibold text-slate-600">Status
+        <input name="status" value="{{ entry.status or "" }}" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2" />
       </label>
     </div>
-
-    <div class="form-grid">
-      <label>
-        Status
-        <input name="status" value="{{ entry.status or "" }}" />
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="text-sm font-semibold text-slate-600">Cover subject
+        <input name="cover_subject" value="{{ entry.cover_subject or "" }}" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2" />
       </label>
-      <label>
-        Class subject
-        <input name="class_subject" value="{{ entry.class_subject or "" }}" />
+      <label class="text-sm font-semibold text-slate-600">Class subject
+        <input name="class_subject" value="{{ entry.class_subject or "" }}" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2" />
       </label>
     </div>
-
-    <div class="form-grid">
-      <label>
-        Class details
-        <input name="class_details" value="{{ entry.class_details or "" }}" />
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="text-sm font-semibold text-slate-600">Class details
+        <input name="class_details" value="{{ entry.class_details or "" }}" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2" />
       </label>
-      <label>
-        Class time
-        <input name="class_time" value="{{ entry.class_time or "" }}" />
+      <label class="text-sm font-semibold text-slate-600">Class time
+        <input name="class_time" value="{{ entry.class_time or "" }}" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2" />
       </label>
     </div>
-
-    <div class="form-grid">
-      <label>
-        Period label
-        <input name="period_label" value="{{ entry.period_label or "" }}" />
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="text-sm font-semibold text-slate-600">Period label
+        <input name="period_label" value="{{ entry.period_label or "" }}" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2" />
       </label>
-      <label>
-        Period raw
-        <input name="period_raw" value="{{ entry.period_raw or "" }}" />
+      <label class="text-sm font-semibold text-slate-600">Period raw
+        <input name="period_raw" value="{{ entry.period_raw or "" }}" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2" />
       </label>
     </div>
-
-    <div class="form-actions">
-      <button type="submit" class="primary-button">Save changes</button>
-      <a href="{{ url_for('covers_manual') }}">Cancel</a>
+    <div class="flex flex-wrap items-center gap-3">
+      <button type="submit" class="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Save changes</button>
+      <a href="{{ url_for('covers_manual') }}" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</a>
     </div>
   </form>
 </section>

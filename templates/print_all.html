@@ -1,61 +1,79 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="print-all-page">
-  <header class="print-all-header">
-    <p class="eyebrow">Printable export</p>
-    <h1>All teacher schedules</h1>
-    <p class="lede">
-      Generate one PDF that contains every teacher roster, grouped by day and period. Use your browser’s print dialog
-      and select “Save as PDF” to deliver an offline copy for meetings or archives.
-    </p>
-  </header>
+<div class="space-y-6">
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Printable export</p>
+        <h1 class="text-2xl font-semibold text-slate-900">All teacher schedules</h1>
+        <p class="text-sm text-slate-500">
+          Use your browser’s print dialog and select “Save as PDF” to generate a portable copy for meetings or archives.
+        </p>
+      </div>
+      <button onclick="window.print()" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+        Print view
+      </button>
+    </div>
+  </section>
 
-  <section class="print-all-grid">
+  <section class="grid gap-6">
     {% for entry in schedules %}
-      <article class="print-teacher-card">
-        <header>
-          <div>
-            <h2>{{ entry.meta.name }}</h2>
-            <p class="teacher-meta">
-              {{ entry.meta.subject }} · {{ entry.meta.level_label }} · {{ entry.meta.primary_class }}
-            </p>
+    <article class="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow">
+      <header class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ entry.meta.level_label }}</p>
+          <h2 class="text-xl font-semibold text-slate-900">{{ entry.meta.name }}</h2>
+          <p class="text-sm text-slate-500">{{ entry.meta.subject }} · {{ entry.meta.primary_class }}</p>
+        </div>
+        <div class="text-right text-sm text-slate-500">
+          <p>{{ entry.meta.course_total }} courses · {{ entry.meta.day_count }} days</p>
+        </div>
+      </header>
+      {% if entry.schedule %}
+      <div class="space-y-4">
+        {% for day in entry.schedule %}
+        <div class="space-y-3 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ day.code }}</p>
+              <h3 class="text-lg font-semibold text-slate-900">{{ day.label }}</h3>
+            </div>
+            <span class="text-sm text-slate-500">Free {{ day.free_periods }} · Max {{ day.max_periods }}</span>
           </div>
-          <span class="teacher-days">{{ entry.meta.course_total }} courses · {{ entry.meta.day_count }} days</span>
-        </header>
-        <div class="print-schedule">
-          {% if entry.schedule %}
-            {% for day in entry.schedule %}
-              <div class="print-day-block">
-                <div class="print-day-label">
-                  <strong>{{ day.label }}</strong>
-                  <span>{{ day.sections | length }} period(s)</span>
-                </div>
-                {% for section in day.sections %}
-                  <div class="print-period-row">
-                    <div class="print-period-title">
-                      <strong>{{ section.period }}</strong>
-                      <span>{{ section.time }}</span>
-                    </div>
-                    <ul>
-                      {% for detail in section.details %}
-                        <li>
-                          <span class="subject">{{ detail.subject }}</span>
-                          <span class="description">{{ detail.details }}</span>
-                          <span class="grade">{{ detail.grade }}</span>
-                        </li>
-                      {% endfor %}
-                    </ul>
-                  </div>
-                {% endfor %}
+          {% if day.sections %}
+          <div class="grid gap-3 md:grid-cols-2">
+            {% for section in day.sections %}
+            <div class="rounded-2xl border border-slate-200 bg-white p-3">
+              <div class="flex items-center justify-between text-sm font-semibold text-slate-700">
+                <span>{{ section.period }}</span>
+                <span class="text-xs text-slate-400">{{ section.time }}</span>
               </div>
+              <ul class="mt-3 space-y-3 text-sm text-slate-600">
+                {% for class_info in section.details %}
+                <li class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="font-semibold text-slate-900">{{ class_info.subject }}</span>
+                    <span class="text-[11px] uppercase tracking-[0.3em] text-slate-400">{{ class_info.grade }}</span>
+                  </div>
+                  <p class="text-[13px] text-slate-500">{{ class_info.details }}</p>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
             {% endfor %}
+          </div>
           {% else %}
-            <p class="empty-schedule-note">Schedule not yet recorded for this teacher.</p>
+          <p class="text-sm text-slate-500">No periods recorded for this day.</p>
           {% endif %}
         </div>
-      </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-500">No schedule data recorded for this teacher.</p>
+      {% endif %}
+    </article>
     {% endfor %}
   </section>
-</section>
+</div>
 {% endblock %}

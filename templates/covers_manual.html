@@ -1,90 +1,68 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="covers-assignments-page panel">
-  <header class="covers-header panel-heading">
-    <div>
-      <h1>Manual Covers Review</h1>
-      <p class="covers-note">
-        Review the automatically assigned covers, print the list for admin validation, or edit assignments manually before confirming compatibility.
-      </p>
+<div class="space-y-6">
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Manual cover review</p>
+        <h1 class="text-2xl font-semibold text-slate-900">Inspect or override auto assignments</h1>
+        <p class="text-sm text-slate-500">Use this page to edit any assignment, verify cover load, or reassign someone.</p>
+      </div>
+      <a href="{{ url_for('covers_assignments') }}" class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Back to automation</a>
     </div>
-    <div class="detail-actions">
-      <button onclick="window.print()" class="print-button">Print review</button>
-      <a class="back-link" href="{{ url_for('covers_assignments') }}">Back to auto assignments</a>
-    </div>
-  </header>
+  </section>
 
-  <section class="covers-section panel">
+  <section class="space-y-6">
     {% if assignments %}
       {% for date, rows in assignments|dictsort %}
-        <article class="cover-card">
-          <header>
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+          <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <strong>{{ date }}</strong>
-              <p>{{ rows|length }} cover assignment{{ rows|length > 1 and "s" or "" }}</p>
+              <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ rows|length }} assignment(s)</p>
+              <h2 class="text-xl font-semibold text-slate-900">{{ date }}</h2>
             </div>
-          </header>
-          <div class="table-responsive">
-            <table class="covers-table">
-            <thead>
-              <tr>
-                <th>Absent</th>
-                <th>Class</th>
-                <th>Cover</th>
-                <th>Cover Subject</th>
-                <th>Status</th>
-                <th>Range</th>
-                <th>Load</th>
-                <th>Edit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for entry in rows %}
+            <a href="{{ url_for('covers_manual_edit', date_key=date, item_idx=0) }}" class="text-xs font-semibold text-emerald-600">Edit first item ?</a>
+          </div>
+          <div class="mt-4 overflow-auto rounded-2xl border border-slate-100">
+            <table class="min-w-full text-left text-sm text-slate-600">
+              <thead class="bg-slate-50 text-xs uppercase tracking-[0.3em] text-slate-400">
                 <tr>
-                  <td>
-                    {{ entry.absent_teacher }}<br />
-                    <small>{{ entry.absent_email }}</small>
+                  <th class="px-4 py-3">Absent</th>
+                  <th class="px-4 py-3">Cover</th>
+                  <th class="px-4 py-3">Subject</th>
+                  <th class="px-4 py-3">Load</th>
+                  <th class="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for entry in rows %}
+                <tr class="border-t border-slate-100">
+                  <td class="px-4 py-3">
+                    <p class="font-semibold text-slate-900">{{ entry.absent_teacher }}</p>
+                    <p class="text-[11px] text-slate-400">{{ entry.period_label or entry.period_raw }}</p>
                   </td>
-                  <td>
-                    <strong>{{ entry.class_subject or entry.subject or "General" }}</strong><br />
-                    {% if entry.class_grade %}
-                      <small>{{ entry.class_grade }}</small><br />
-                    {% endif %}
-                    {% set period_label = entry.period_label or entry.period_raw %}
-                    {% if period_label %}
-                      <small>
-                        {{ period_label }}
-                        {% if entry.class_time %}
-                          · {{ entry.class_time }}
-                        {% endif %}
-                      </small><br />
-                    {% endif %}
-                    {% if entry.class_details %}
-                      <small>{{ entry.class_details }}</small>
-                    {% endif %}
+                  <td class="px-4 py-3">
+                    <p class="font-semibold text-slate-900">{{ entry.cover_teacher }}</p>
+                    <p class="text-[11px] text-slate-400">{{ entry.cover_subject or "General" }}</p>
                   </td>
-                  <td>
-                    {{ entry.cover_teacher }}<br />
-                    <small>{{ entry.cover_email }}</small>
-                  </td>
-                  <td>{{ entry.cover_subject or "General" }}</td>
-                  <td>{{ entry.status or "pending" }}</td>
-                  <td>{{ entry.leave_start }} &mdash; {{ entry.leave_end }}</td>
-                  <td>{{ entry.cover_free_periods }} / {{ entry.cover_max_periods }} free</td>
-                  <td>
-                    <a href="{{ url_for('covers_manual_edit', date_key=date, item_idx=loop.index0) }}">Edit</a>
+                  <td class="px-4 py-3 text-slate-600">{{ entry.class_subject or entry.subject or "General" }}</td>
+                  <td class="px-4 py-3 text-[11px] text-slate-500">{{ entry.cover_free_periods }} / {{ entry.cover_max_periods }} free</td>
+                  <td class="px-4 py-3">
+                    <a href="{{ url_for('covers_manual_edit', date_key=date, item_idx=loop.index0) }}" class="text-xs font-semibold text-emerald-600">Edit</a>
                   </td>
                 </tr>
-              {% endfor %}
-            </tbody>
+                {% endfor %}
+              </tbody>
             </table>
           </div>
         </article>
       {% endfor %}
     {% else %}
-      <p>No cover assignments yet.</p>
+      <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
+        No cover assignments to review yet.
+      </div>
     {% endif %}
   </section>
-</section>
+</div>
 {% endblock %}
