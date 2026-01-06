@@ -9,8 +9,24 @@
         <h1 class="text-2xl font-semibold text-slate-900">Incoming leave submissions</h1>
         <p class="text-sm text-slate-500">Every webhook payload recorded, grouped by day so you can double-check what triggered the automation.</p>
       </div>
-      <a href="{{ url_for('covers_manual') }}" class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Manual review</a>
+      <div class="flex flex-wrap items-center gap-2">
+        <form method="post" action="{{ url_for('assign_missing_covers') }}">
+          <button
+            type="submit"
+            class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:bg-slate-50 {% if not pending_count %}pointer-events-none opacity-40{% endif %}"
+            {% if not pending_count %}disabled{% endif %}
+          >
+            Assign pending covers ({{ pending_count }})
+          </button>
+        </form>
+        <a href="{{ url_for('covers_manual') }}" class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Manual review</a>
+      </div>
     </div>
+    {% if pending_count %}
+    <div class="mt-2 text-sm text-slate-500">
+      <p>{{ pending_count }} record{{ pending_count == 1 and "" or "s" }} missing assigned covers</p>
+    </div>
+    {% endif %}
   </section>
 
   {% if records %}

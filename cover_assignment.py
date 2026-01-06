@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Set
 
@@ -61,8 +62,31 @@ class CoverAssignmentManager:
         directory = os.path.dirname(self.storage_path)
         if directory and not os.path.exists(directory):
             os.makedirs(directory, exist_ok=True)
-        with open(self.storage_path, "w", encoding="utf-8") as handle:
-            json.dump(self.assignments, handle, indent=2)
+        tmp_dir = directory or os.getcwd()
+        tmp_handle = None
+        tmp_path = None
+        try:
+            tmp_handle = tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                delete=False,
+                dir=tmp_dir,
+            )
+            tmp_path = tmp_handle.name
+            json.dump(self.assignments, tmp_handle, indent=2)
+            tmp_handle.flush()
+            os.fsync(tmp_handle.fileno())
+            tmp_handle.close()
+            os.replace(tmp_path, self.storage_path)
+        except OSError:
+            logger.exception("Failed to save cover assignments")
+            if tmp_handle and not tmp_handle.closed:
+                tmp_handle.close()
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
 
     def assign_for_record(self, record: Dict[str, Any]) -> None:
         absent_email = record.get("teacher_email")
@@ -388,3 +412,30 @@ class CoverAssignmentManager:
 
     def get_assignments(self) -> dict[str, list[dict[str, Any]]]:
         return self.assignments.copy()
+
+    def _assigned_request_ids(self) -> set[str]:
+        ids: set[str] = set()
+        for rows in self.assignments.values():
+            for entry in rows:
+                request_id = entry.get("request_id")
+                if request_id:
+                    ids.add(request_id)
+        return ids
+
+    def records_without_assignments(self) -> list[dict[str, Any]]:
+        assigned_ids = self._assigned_request_ids()
+        pending: list[dict[str, Any]] = []
+        for _, records in sorted(self.covers_manager.get_all_records().items()):
+            for record in records:
+                request_id = record.get("request_id")
+                if not request_id:
+                    continue
+                if request_id not in assigned_ids:
+                    pending.append(record)
+        return pending
+
+    def assign_missing_records(self) -> int:
+        pending_records = self.records_without_assignments()
+        for record in pending_records:
+            self.assign_for_record(record)
+        return len(pending_records)

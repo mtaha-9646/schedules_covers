@@ -126,7 +126,19 @@ def covers_list():
 @app.route("/covers/absent")
 def covers_absent():
     records = covers_manager.get_all_records()
-    return render_template("covers_absent.html", records=records)
+    pending_count = len(assignment_manager.records_without_assignments())
+    return render_template(
+        "covers_absent.html",
+        records=records,
+        pending_count=pending_count,
+    )
+
+
+@app.route("/covers/assign-missing", methods=["POST"])
+def assign_missing_covers():
+    count = assignment_manager.assign_missing_records()
+    app.logger.info("Triggered cover assignment for %d pending records", count)
+    return redirect(url_for("covers_absent"))
 
 
 @app.route("/covers/assignments")
