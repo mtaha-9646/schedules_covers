@@ -19,6 +19,9 @@
             Assign pending covers ({{ pending_count }})
           </button>
         </form>
+        <a href="{{ url_for('covers_exclusions') }}" class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">
+          Manage excluded teachers ({{ excluded_count }})
+        </a>
         <a href="{{ url_for('covers_manual') }}" class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Manual review</a>
       </div>
     </div>

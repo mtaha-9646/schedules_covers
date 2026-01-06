@@ -5,13 +5,14 @@ import logging
 import os
 import tempfile
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from covers_service import CoversManager
 from schedule_service import ScheduleManager
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSIGNMENTS_FILE = os.path.join(BASE_DIR, "cover_assignments.json")
+EXCLUDED_TEACHERS_FILE = os.path.join(BASE_DIR, "excluded_teachers.json")
 DAY_CODE_BY_WEEKDAY = {0: "Mo", 1: "Tu", 2: "We", 3: "Th", 4: "Fr"}
 
 CYCLE_HIGH = "HighSchool"
@@ -45,6 +46,7 @@ class CoverAssignmentManager:
         self.covers_manager = covers_manager
         self.storage_path = storage_path or ASSIGNMENTS_FILE
         self.assignments: dict[str, list[dict[str, Any]]] = self._load_assignments()
+        self._excluded_slugs: set[str] = self._load_exclusions()
 
     def _load_assignments(self) -> dict[str, list[dict[str, Any]]]:
         if not os.path.exists(self.storage_path):
@@ -57,6 +59,18 @@ class CoverAssignmentManager:
         except (OSError, json.JSONDecodeError):
             pass
         return {}
+
+    def _load_exclusions(self) -> set[str]:
+        if not os.path.exists(EXCLUDED_TEACHERS_FILE):
+            return set()
+        try:
+            with open(EXCLUDED_TEACHERS_FILE, encoding="utf-8") as handle:
+                data = json.load(handle)
+            if isinstance(data, list):
+                return {str(item).strip() for item in data if item}
+        except (OSError, json.JSONDecodeError):
+            pass
+        return set()
 
     def _save_assignments(self) -> None:
         directory = os.path.dirname(self.storage_path)
@@ -195,6 +209,8 @@ class CoverAssignmentManager:
             slug = teacher.get("slug")
             email = str(teacher.get("email") or "").strip().lower()
             if not slug or not email or email == absent_email:
+                continue
+            if slug in self._excluded_slugs:
                 continue
             if email in absent_emails:
                 continue
@@ -412,6 +428,24 @@ class CoverAssignmentManager:
 
     def get_assignments(self) -> dict[str, list[dict[str, Any]]]:
         return self.assignments.copy()
+
+    def excluded_teacher_slugs(self) -> set[str]:
+        return set(self._excluded_slugs)
+
+    def update_excluded_teachers(self, slugs: Iterable[str]) -> None:
+        cleaned = {str(slug).strip() for slug in slugs if slug}
+        self._excluded_slugs = cleaned
+        self._save_exclusions()
+
+    def _save_exclusions(self) -> None:
+        directory = os.path.dirname(EXCLUDED_TEACHERS_FILE)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+        try:
+            with open(EXCLUDED_TEACHERS_FILE, "w", encoding="utf-8") as handle:
+                json.dump(sorted(self._excluded_slugs), handle, indent=2)
+        except OSError:
+            logger.exception("Failed to save excluded teachers")
 
     def _assigned_request_ids(self) -> set[str]:
         ids: set[str] = set()

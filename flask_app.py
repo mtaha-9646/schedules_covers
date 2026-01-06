@@ -68,6 +68,28 @@ def availability():
     return jsonify(result)
 
 
+@app.route("/api/check-availability")
+def check_availability():
+    period_raw = request.args.get("period")
+    day_raw = request.args.get("day")
+    if not period_raw or not day_raw:
+        return jsonify({"error": "Both 'day' and 'period' query parameters are required"}), 400
+    period_label = manager.normalize_period(period_raw) or period_raw.strip()
+    day_code = manager.normalize_day(day_raw)
+    if not day_code:
+        return jsonify({"error": f"Could not parse day '{day_raw}'"}), 400
+    available = manager.teachers_available(day_code, period_label)
+    return jsonify(
+        {
+            "day": day_code,
+            "day_label": DAY_LABELS.get(day_code, day_code),
+            "period": period_label,
+            "count": len(available),
+            "available": available,
+        }
+    )
+
+
 @app.route("/external/leave-approvals", methods=["POST"])
 def external_leave_approvals():
     if LEAVE_WEBHOOK_SECRET:
@@ -127,10 +149,12 @@ def covers_list():
 def covers_absent():
     records = covers_manager.get_all_records()
     pending_count = len(assignment_manager.records_without_assignments())
+    excluded_count = len(assignment_manager.excluded_teacher_slugs())
     return render_template(
         "covers_absent.html",
         records=records,
         pending_count=pending_count,
+        excluded_count=excluded_count,
     )
 
 
@@ -139,6 +163,21 @@ def assign_missing_covers():
     count = assignment_manager.assign_missing_records()
     app.logger.info("Triggered cover assignment for %d pending records", count)
     return redirect(url_for("covers_absent"))
+
+
+@app.route("/covers/exclusions", methods=["GET", "POST"])
+def covers_exclusions():
+    if request.method == "POST":
+        selected = request.form.getlist("excluded")
+        assignment_manager.update_excluded_teachers(selected)
+        return redirect(url_for("covers_absent"))
+    teachers = manager.teacher_cards
+    excluded = assignment_manager.excluded_teacher_slugs()
+    return render_template(
+        "covers_exclusions.html",
+        teachers=teachers,
+        excluded=excluded,
+    )
 
 
 @app.route("/covers/assignments")
