@@ -429,6 +429,10 @@ class CoverAssignmentManager:
     def get_assignments(self) -> dict[str, list[dict[str, Any]]]:
         return self.assignments.copy()
 
+    def reset_assignments(self) -> None:
+        self.assignments = {}
+        self._save_assignments()
+
     def excluded_teacher_slugs(self) -> set[str]:
         return set(self._excluded_slugs)
 

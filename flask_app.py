@@ -180,6 +180,14 @@ def covers_exclusions():
     )
 
 
+@app.route("/covers/reset-data", methods=["POST"])
+def reset_cover_data():
+    covers_manager.clear_records()
+    assignment_manager.reset_assignments()
+    app.logger.warning("Absences and cover assignments were reset via UI")
+    return redirect(url_for("covers_absent"))
+
+
 @app.route("/covers/assignments")
 def covers_assignments():
     assignments = assignment_manager.get_assignments()

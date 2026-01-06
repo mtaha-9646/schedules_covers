@@ -23,6 +23,14 @@
           Manage excluded teachers ({{ excluded_count }})
         </a>
         <a href="{{ url_for('covers_manual') }}" class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Manual review</a>
+        <form method="post" action="{{ url_for('reset_cover_data') }}" onsubmit="return confirm('This will clear all recorded absences and cover assignments. Proceed?');">
+          <button
+            type="submit"
+            class="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-600 hover:bg-red-50"
+          >
+            Reset absences & covers
+          </button>
+        </form>
       </div>
     </div>
     {% if pending_count %}
@@ -46,52 +54,25 @@
           <p>{{ entries|selectattr("forward_status", "equalto", "pending")|list|length }} waiting for forward</p>
         </div>
       </div>
-      <div class="overflow-x-auto rounded-2xl border border-slate-100">
-        <table class="min-w-full text-sm text-slate-600">
-          <thead class="bg-slate-50 text-xs uppercase tracking-[0.3em] text-slate-400">
-            <tr>
-              <th class="px-4 py-3 text-left">Teacher</th>
-              <th class="px-4 py-3 text-left">Period</th>
-              <th class="px-4 py-3 text-left">Leave window</th>
-              <th class="px-4 py-3 text-left">Status</th>
-              <th class="px-4 py-3 text-left">Reason</th>
-              <th class="px-4 py-3 text-left">Request</th>
-              <th class="px-4 py-3 text-left">Forward</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for entry in entries %}
-            <tr class="border-t border-slate-100 text-[13px]">
-              <td class="px-4 py-3">
-                <p class="font-semibold text-slate-900">{{ entry.teacher }}</p>
-                <p class="text-[11px] text-slate-400">{{ entry.teacher_email or "missing email" }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <p class="font-semibold text-slate-900">{{ entry.period_label or entry.period_raw or "General" }}</p>
-                <p class="text-[11px] text-slate-400">{{ entry.leave_type or "unspecified" }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <p class="font-semibold text-slate-900">{{ entry.leave_start }} &rarr; {{ entry.leave_end }}</p>
-                <p class="text-[11px] text-slate-400">{{ entry.submitted_at or "submitted unknown" }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <span class="inline-flex rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600">{{ entry.status or "pending" }}</span>
-              </td>
-              <td class="px-4 py-3">
-                <p class="text-[11px] text-slate-500">{{ entry.reason or "no reason provided" }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <p class="font-semibold text-slate-900">{{ entry.request_id }}</p>
-                <p class="text-[11px] text-slate-400">{{ entry.recorded_at }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <p class="text-[11px] text-slate-500">{{ entry.forward_status or "pending" }}</p>
-                <p class="text-[11px] text-slate-400">{{ entry.forward_details or "not forwarded" }}</p>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="grid gap-3">
+        {% for entry in entries %}
+        <div class="rounded-2xl border border-slate-100 bg-slate-50/40 p-4 text-sm text-slate-700">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-semibold text-slate-900">{{ entry.teacher }}</p>
+              <p class="text-[11px] text-slate-500">{{ entry.teacher_email or "missing email" }}</p>
+            </div>
+            <span class="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600">{{ entry.status or "pending" }}</span>
+          </div>
+          <div class="mt-2 grid gap-1 text-[12px]">
+            <p><span class="font-semibold text-slate-900">{{ entry.period_label or entry.period_raw or "General" }}</span> &middot; {{ entry.leave_type or "unspecified" }}</p>
+            <p><span class="font-semibold text-slate-900">{{ entry.leave_start }}</span> &rarr; <span class="text-slate-700">{{ entry.leave_end }}</span></p>
+            <p class="text-[11px] text-slate-500">{{ entry.reason or "No reason provided" }}</p>
+            <p class="text-[11px] text-slate-500">Req {{ entry.request_id }} · {{ entry.recorded_at }}</p>
+            <p class="text-[11px] text-slate-500">Forward: {{ entry.forward_status or "pending" }} ({{ entry.forward_details or "not forwarded" }})</p>
+          </div>
+        </div>
+        {% endfor %}
       </div>
     </article>
     {% endfor %}

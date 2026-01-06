@@ -41,6 +41,13 @@ class CoversManager:
         with open(self.storage_path, "w", encoding="utf-8") as handle:
             json.dump(self.records, handle, indent=2)
 
+    def clear_records(self) -> None:
+        self.records = {}
+        try:
+            self._save_records()
+        except OSError:
+            logger.exception("Failed to clear cover records")
+
     def record_leave(self, payload: Dict[str, Any]) -> dict[str, Any]:
         normalized = self._normalize_payload(payload)
         date_key = normalized["leave_start"]
