@@ -7,6 +7,7 @@ import subprocess
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 from typing import Any
 
+from assignment_settings import AssignmentSettingsManager
 from cover_assignment import CoverAssignmentManager
 from covers_service import CoversManager
 from schedule_service import DAY_LABELS, ORDERED_PERIODS, ScheduleManager, WEEKDAY_TO_DAY_CODE
@@ -20,7 +21,8 @@ DEPLOY_SCRIPT = os.path.join(BASE_DIR, "deploy.sh")
 app = Flask(__name__)
 manager = ScheduleManager(DATA_FILE)
 covers_manager = CoversManager()
-assignment_manager = CoverAssignmentManager(manager, covers_manager)
+settings_manager = AssignmentSettingsManager()
+assignment_manager = CoverAssignmentManager(manager, covers_manager, settings_manager)
 assignment_manager.sync_existing_records()
 
 
@@ -192,6 +194,37 @@ def covers_assignments():
         date_options=date_options,
         selected_date=selected_date,
         selected_day_label=selected_day_label,
+    )
+
+
+@app.route("/assignments/settings", methods=["GET", "POST"])
+def assignment_settings():
+    field_names = [
+        "max_covers_default",
+        "max_covers_high",
+        "max_covers_high_friday",
+        "max_covers_middle",
+        "max_covers_middle_friday",
+        "highschool_full_threshold",
+        "middleschool_full_threshold",
+    ]
+    if request.method == "POST":
+        updates: dict[str, int] = {}
+        for field in field_names:
+            value = request.form.get(field)
+            if not value:
+                continue
+            try:
+                number = max(1, int(value))
+            except ValueError:
+                continue
+            updates[field] = number
+        if updates:
+            settings_manager.update(updates)
+        return redirect(url_for("assignment_settings"))
+    return render_template(
+        "assignment_settings.html",
+        settings=settings_manager.to_dict(),
     )
 
 

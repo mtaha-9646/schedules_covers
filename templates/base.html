@@ -18,6 +18,7 @@
         <nav class="flex flex-wrap gap-2 text-sm" aria-label="Primary navigation">
           <a class="{{ 'rounded-full px-4 py-1 font-medium' }} {{ 'bg-slate-900 text-white' if request.endpoint == 'index' else 'text-slate-600 hover:bg-slate-100' }}" href="{{ url_for('index') }}">Roster</a>
           <a class="{{ 'rounded-full px-4 py-1 font-medium' }} {{ 'bg-slate-900 text-white' if request.endpoint == 'covers_assignments' else 'text-slate-600 hover:bg-slate-100' }}" href="{{ url_for('covers_assignments') }}">Assignments</a>
+          <a class="{{ 'rounded-full px-4 py-1 font-medium' }} {{ 'bg-slate-900 text-white' if request.endpoint == 'assignment_settings' else 'text-slate-600 hover:bg-slate-100' }}" href="{{ url_for('assignment_settings') }}">Assignment settings</a>
           <a class="{{ 'rounded-full px-4 py-1 font-medium' }} {{ 'bg-slate-900 text-white' if request.endpoint == 'absences_overview' else 'text-slate-600 hover:bg-slate-100' }}" href="{{ url_for('absences_overview') }}">Absences</a>
           <a class="{{ 'rounded-full px-4 py-1 font-medium' }} {{ 'bg-slate-900 text-white' if request.endpoint == 'covers_manual' else 'text-slate-600 hover:bg-slate-100' }}" href="{{ url_for('covers_manual') }}">Manual Review</a>
           <a class="{{ 'rounded-full px-4 py-1 font-medium' }} {{ 'bg-slate-900 text-white' if request.endpoint == 'covers_upcoming' else 'text-slate-600 hover:bg-slate-100' }}" href="{{ url_for('covers_upcoming') }}">Upcoming</a>

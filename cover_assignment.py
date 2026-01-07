@@ -7,6 +7,7 @@ import tempfile
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Set
 
+from assignment_settings import AssignmentSettingsManager
 from covers_service import CoversManager
 from schedule_service import ScheduleManager
 
@@ -41,10 +42,12 @@ class CoverAssignmentManager:
         self,
         schedule_manager: ScheduleManager,
         covers_manager: CoversManager,
+        settings: AssignmentSettingsManager,
         storage_path: Optional[str] = None,
     ):
         self.schedule_manager = schedule_manager
         self.covers_manager = covers_manager
+        self.settings = settings
         self.storage_path = storage_path or ASSIGNMENTS_FILE
         self.assignments: dict[str, list[dict[str, Any]]] = self._load_assignments()
         self.schedule_manager.rebuild_cover_assignments(self.assignments)
@@ -229,7 +232,8 @@ class CoverAssignmentManager:
             database_covers = self._covers_for_teacher_on_date(date_key, slug)
             runtime_covers = session_covers_log.get(slug, 0)
             total_covers = database_covers + runtime_covers
-            if total_covers >= 2:
+            max_covers = self._max_covers_for_teacher(day_summary, day_code, teacher_cycles)
+            if total_covers >= max_covers:
                 continue
             if CYCLE_HIGH in teacher_cycles:
                 occupied_slots = day_summary["scheduled_count"] + total_covers
@@ -266,6 +270,40 @@ class CoverAssignmentManager:
         if cycle_overlap:
             return 3
         return 4
+
+    def _max_covers_for_teacher(
+        self,
+        day_summary: dict[str, Any],
+        day_code: str,
+        teacher_cycles: set[str],
+    ) -> int:
+        is_friday = day_code == "Fr"
+        if CYCLE_HIGH in teacher_cycles:
+            max_covers = (
+                self.settings.max_covers_high_friday
+                if is_friday
+                else self.settings.max_covers_high
+            )
+        elif CYCLE_MIDDLE in teacher_cycles:
+            max_covers = (
+                self.settings.max_covers_middle_friday
+                if is_friday
+                else self.settings.max_covers_middle
+            )
+        else:
+            max_covers = self.settings.max_covers_default
+        scheduled_count = day_summary.get("scheduled_count") or 0
+        if (
+            CYCLE_HIGH in teacher_cycles
+            and scheduled_count >= self.settings.highschool_full_threshold
+        ):
+            max_covers = min(max_covers, 1)
+        if (
+            CYCLE_MIDDLE in teacher_cycles
+            and scheduled_count >= self.settings.middleschool_full_threshold
+        ):
+            max_covers = min(max_covers, 1)
+        return max(1, max_covers)
 
     def _details_for_teacher_on_day(self, slug: Optional[str], day_code: str) -> list[dict[str, Any]]:
         if not slug:
