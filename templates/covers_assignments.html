@@ -7,66 +7,98 @@
       <div>
         <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Cover assignments</p>
         <h1 class="text-2xl font-semibold text-slate-900">Automatically generated covers</h1>
-        <p class="text-sm text-slate-500">Each entry is automatically picked based on availability, subject, and workload.</p>
+        <p class="text-sm text-slate-500">Pick a date and day to focus on that set of assignments.</p>
       </div>
       <a href="{{ url_for('covers_manual') }}" class="rounded-2xl border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Review manually</a>
     </div>
+    <form method="get" class="mt-6 flex flex-col gap-3">
+      <label class="text-xs uppercase tracking-[0.3em] text-slate-400" for="assignment-date">Choose date</label>
+      <div class="flex flex-wrap items-center gap-3">
+        <select
+          name="date"
+          id="assignment-date"
+          class="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
+        >
+          <option value="" disabled {% if not selected_date %}selected{% endif %}>Select a date</option>
+          {% for option in date_options %}
+            <option value="{{ option.key }}" {% if option.key == selected_date %}selected{% endif %}>
+              {{ option.key }}{% if option.label %} · {{ option.label }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <button
+          type="submit"
+          class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white hover:bg-slate-800"
+        >
+          See assignments
+        </button>
+      </div>
+      {% if selected_day_label %}
+      <p class="text-xs text-slate-500">Day selected: <span class="font-semibold text-slate-900">{{ selected_day_label }}</span></p>
+      {% endif %}
+    </form>
   </section>
 
   <section class="space-y-6">
-    {% if assignments %}
-      {% for date, rows in assignments|dictsort(reverse=True) %}
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ rows|length }} assignment(s)</p>
-              <h2 class="text-xl font-semibold text-slate-900">{{ date }}</h2>
-            </div>
-            <a href="{{ url_for('covers_manual') }}" class="text-xs font-semibold text-emerald-600">Inspect day ?</a>
+    {% if selected_date %}
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ rows|length }} assignment(s)</p>
+            <h2 class="text-xl font-semibold text-slate-900">{{ selected_date }}</h2>
           </div>
-          <div class="mt-4 overflow-auto rounded-2xl border border-slate-100">
-            <table class="min-w-full text-sm text-slate-600">
-              <thead class="bg-slate-50 text-xs uppercase tracking-[0.3em] text-slate-400">
-                <tr>
-                  <th class="px-4 py-3 text-left">Absent</th>
-                  <th class="px-4 py-3 text-left">Class</th>
-                  <th class="px-4 py-3 text-left">Cover + Subject</th>
-                  <th class="px-4 py-3 text-left">Status</th>
-                  <th class="px-4 py-3 text-left">Cover load</th>
-                  <th class="px-4 py-3 text-left">Assigned</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for entry in rows %}
-                <tr class="border-t border-slate-100 text-xs">
-                  <td class="px-4 py-3">
-                    <p class="font-semibold text-slate-900">{{ entry.absent_teacher }}</p>
-                    <p class="text-slate-500">{{ entry.subject or "General" }}</p>
-                    <p class="text-[11px] text-slate-400">{{ entry.absent_email }}</p>
-                  </td>
-                  <td class="px-4 py-3">
-                    <p class="font-semibold text-slate-900">{{ entry.class_subject or "General" }}</p>
-                    {% if entry.period_label or entry.period_raw %}
-                    <p class="text-[11px] text-slate-400">{{ entry.period_label or entry.period_raw }} &middot; {{ entry.class_time or "" }}</p>
-                    {% endif %}
-                  </td>
-                  <td class="px-4 py-3">
-                    <p class="font-semibold text-slate-900">{{ entry.cover_teacher }}</p>
-                    <p class="text-[11px] text-slate-400">{{ entry.cover_subject or "General" }} &middot; {{ entry.cover_email }}</p>
-                  </td>
-                  <td class="px-4 py-3 text-slate-900">{{ entry.status or "pending" }}</td>
-                  <td class="px-4 py-3 text-[11px] text-slate-500">{{ entry.cover_free_periods }} free / {{ entry.cover_max_periods }} max</td>
-                  <td class="px-4 py-3 text-[11px] text-slate-400">{{ entry.cover_assigned_at }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </article>
-      {% endfor %}
+          {% if selected_day_label %}
+          <span class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ selected_day_label }}</span>
+          {% endif %}
+        </div>
+        {% if rows %}
+        <div class="mt-4 overflow-auto rounded-2xl border border-slate-100">
+          <table class="min-w-full text-sm text-slate-600">
+            <thead class="bg-slate-50 text-xs uppercase tracking-[0.3em] text-slate-400">
+              <tr>
+                <th class="px-4 py-3 text-left">Absent</th>
+                <th class="px-4 py-3 text-left">Class</th>
+                <th class="px-4 py-3 text-left">Cover + Subject</th>
+                <th class="px-4 py-3 text-left">Status</th>
+                <th class="px-4 py-3 text-left">Cover load</th>
+                <th class="px-4 py-3 text-left">Assigned</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in rows %}
+              <tr class="border-t border-slate-100 text-xs">
+                <td class="px-4 py-3">
+                  <p class="font-semibold text-slate-900">{{ entry.absent_teacher }}</p>
+                  <p class="text-slate-500">{{ entry.subject or "General" }}</p>
+                  <p class="text-[11px] text-slate-400">{{ entry.absent_email }}</p>
+                </td>
+                <td class="px-4 py-3">
+                  <p class="font-semibold text-slate-900">{{ entry.class_subject or "General" }}</p>
+                  {% if entry.period_label or entry.period_raw %}
+                  <p class="text-[11px] text-slate-400">{{ entry.period_label or entry.period_raw }} &middot; {{ entry.class_time or "" }}</p>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                  <p class="font-semibold text-slate-900">{{ entry.cover_teacher }}</p>
+                  <p class="text-[11px] text-slate-400">{{ entry.cover_subject or "General" }} &middot; {{ entry.cover_email }}</p>
+                </td>
+                <td class="px-4 py-3 text-slate-900">{{ entry.status or "pending" }}</td>
+                <td class="px-4 py-3 text-[11px] text-slate-500">{{ entry.cover_free_periods }} free / {{ entry.cover_max_periods }} max</td>
+                <td class="px-4 py-3 text-[11px] text-slate-400">{{ entry.cover_assigned_at }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+          No assignments recorded for {{ selected_date }} yet.
+        </div>
+        {% endif %}
+      </article>
     {% else %}
-      <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
-        No cover assignments yet.
+      <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+        No cover assignments have been generated yet. Run the automation or wait for the next recorded leave.
       </div>
     {% endif %}
   </section>

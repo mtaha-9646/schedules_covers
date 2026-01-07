@@ -156,63 +156,43 @@ def external_leave_approvals():
     return jsonify({"status": "recorded", "teacher": record["teacher"], "date": record["leave_start"]})
 
 
-@app.route("/covers")
-def covers_dashboard():
-    return render_template("covers.html")
-
-
-@app.route("/api/covers")
-def covers_list():
-    return jsonify(covers_manager.get_all_records())
-
-
-@app.route("/covers/absent")
-def covers_absent():
-    records = covers_manager.get_all_records()
-    pending_count = len(assignment_manager.records_without_assignments())
-    excluded_count = len(assignment_manager.excluded_teacher_slugs())
-    return render_template(
-        "covers_absent.html",
-        records=records,
-        pending_count=pending_count,
-        excluded_count=excluded_count,
-    )
-
-
-@app.route("/covers/assign-missing", methods=["POST"])
-def assign_missing_covers():
-    count = assignment_manager.assign_missing_records()
-    app.logger.info("Triggered cover assignment for %d pending records", count)
-    return redirect(url_for("covers_absent"))
-
-
-@app.route("/covers/exclusions", methods=["GET", "POST"])
-def covers_exclusions():
-    if request.method == "POST":
-        selected = request.form.getlist("excluded")
-        assignment_manager.update_excluded_teachers(selected)
-        return redirect(url_for("covers_absent"))
-    teachers = manager.teacher_cards
-    excluded = assignment_manager.excluded_teacher_slugs()
-    return render_template(
-        "covers_exclusions.html",
-        teachers=teachers,
-        excluded=excluded,
-    )
-
-
-@app.route("/covers/reset-data", methods=["POST"])
-def reset_cover_data():
-    covers_manager.clear_records()
-    assignment_manager.reset_assignments()
-    app.logger.warning("Absences and cover assignments were reset via UI")
-    return redirect(url_for("covers_absent"))
-
-
 @app.route("/covers/assignments")
 def covers_assignments():
     assignments = assignment_manager.get_assignments()
-    return render_template("covers_assignments.html", assignments=assignments)
+    date_keys = sorted(assignments.keys())
+    requested_date = request.args.get("date")
+    selected_date = requested_date if requested_date in assignments else None
+    if not selected_date and date_keys:
+        selected_date = date_keys[-1]
+    selected_rows = assignments.get(selected_date, [])
+
+    date_options: list[dict[str, str | None]] = []
+    for date_key in date_keys:
+        label: str | None = None
+        try:
+            code = WEEKDAY_TO_DAY_CODE.get(datetime.fromisoformat(date_key).weekday())
+            if code:
+                label = DAY_LABELS.get(code, code)
+        except ValueError:
+            pass
+        date_options.append({"key": date_key, "label": label})
+
+    selected_day_label: str | None = None
+    if selected_date:
+        try:
+            code = WEEKDAY_TO_DAY_CODE.get(datetime.fromisoformat(selected_date).weekday())
+            if code:
+                selected_day_label = DAY_LABELS.get(code, code)
+        except ValueError:
+            selected_day_label = None
+
+    return render_template(
+        "covers_assignments.html",
+        rows=selected_rows,
+        date_options=date_options,
+        selected_date=selected_date,
+        selected_day_label=selected_day_label,
+    )
 
 
 @app.route("/covers/manual")
