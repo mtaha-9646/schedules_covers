@@ -14,6 +14,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSIGNMENTS_FILE = os.path.join(BASE_DIR, "cover_assignments.json")
 EXCLUDED_TEACHERS_FILE = os.path.join(BASE_DIR, "excluded_teachers.json")
 DAY_CODE_BY_WEEKDAY = {0: "Mo", 1: "Tu", 2: "We", 3: "Th", 4: "Fr"}
+NON_ASSIGNABLE_STATUSES = {"denied", "declined", "rejected", "cancelled", "withdrawn"}
 
 CYCLE_HIGH = "HighSchool"
 CYCLE_MIDDLE = "MiddleSchool"
@@ -112,7 +113,7 @@ class CoverAssignmentManager:
         if not absent_email:
             return
         status = str(record.get("status") or "").strip().lower()
-        if status != "approved":
+        if status in NON_ASSIGNABLE_STATUSES:
             return
         absent_slug = record.get("teacher_slug")
         if not absent_slug:
