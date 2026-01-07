@@ -241,6 +241,13 @@ def absences_overview():
     )
 
 
+@app.route("/absences/assign-missing", methods=["POST"])
+def assign_missing_absences():
+    count = assignment_manager.assign_missing_records()
+    app.logger.info("Triggered assignment for %d pending absences", count)
+    return redirect(url_for("absences_overview"))
+
+
 @app.route("/covers/manual")
 def covers_manual():
     assignments = assignment_manager.get_assignments()

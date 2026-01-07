@@ -17,6 +17,16 @@
         {% endif %}
       </span>
     </div>
+    <form method="post" action="{{ url_for('assign_missing_absences') }}" class="mt-4 flex flex-wrap gap-3">
+      <button
+        type="submit"
+        {% if not pending_count %}disabled{% endif %}
+        class="rounded-2xl border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
+      >
+        Assign pending absences ({{ pending_count }})
+      </button>
+      <p class="text-xs text-slate-500">This re-runs the assignment logic for every recorded leave, including future dates.</p>
+    </form>
     <form method="get" class="mt-6 flex flex-wrap items-end gap-3">
       <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500" for="absence-date">Choose date</label>
       <select
