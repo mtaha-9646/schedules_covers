@@ -466,6 +466,16 @@ class CoverAssignmentManager:
                     ids.add(request_id)
         return ids
 
+    def assigned_request_ids(self) -> set[str]:
+        """Return the set of request IDs that already have assignments."""
+        return self._assigned_request_ids()
+
+    def is_request_assigned(self, request_id: Optional[str]) -> bool:
+        """Indicate if the given request id has at least one assignment stored."""
+        if not request_id:
+            return False
+        return request_id in self.assigned_request_ids()
+
     def records_without_assignments(self) -> list[dict[str, Any]]:
         assigned_ids = self._assigned_request_ids()
         pending: list[dict[str, Any]] = []

@@ -195,6 +195,52 @@ def covers_assignments():
     )
 
 
+@app.route("/absences")
+def absences_overview():
+    records_by_date = covers_manager.get_all_records()
+    date_keys = sorted(records_by_date.keys())
+    requested_date = request.args.get("date")
+    selected_date = requested_date if requested_date in records_by_date else None
+    if not selected_date and date_keys:
+        selected_date = date_keys[-1]
+    rows = records_by_date.get(selected_date, [])
+
+    assigned_ids = assignment_manager.assigned_request_ids()
+    assigned_count = sum(1 for entry in rows if entry.get("request_id") in assigned_ids)
+    pending_count = len(rows) - assigned_count
+
+    date_options: list[dict[str, str | None]] = []
+    for date_key in date_keys:
+        label: str | None = None
+        try:
+            code = WEEKDAY_TO_DAY_CODE.get(datetime.fromisoformat(date_key).weekday())
+            if code:
+                label = DAY_LABELS.get(code, code)
+        except ValueError:
+            pass
+        date_options.append({"key": date_key, "label": label})
+
+    selected_day_label: str | None = None
+    if selected_date:
+        try:
+            code = WEEKDAY_TO_DAY_CODE.get(datetime.fromisoformat(selected_date).weekday())
+            if code:
+                selected_day_label = DAY_LABELS.get(code, code)
+        except ValueError:
+            selected_day_label = None
+
+    return render_template(
+        "absences.html",
+        rows=rows,
+        date_options=date_options,
+        selected_date=selected_date,
+        selected_day_label=selected_day_label,
+        assigned_ids=assigned_ids,
+        assigned_count=assigned_count,
+        pending_count=pending_count,
+    )
+
+
 @app.route("/covers/manual")
 def covers_manual():
     assignments = assignment_manager.get_assignments()

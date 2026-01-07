@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Absence tracker</p>
+        <h1 class="text-2xl font-semibold text-slate-900">Incoming absences</h1>
+        <p class="text-sm text-slate-500">Review every recorded leave request by day and see whether it already has an assignment.</p>
+      </div>
+      <span class="text-xs uppercase tracking-[0.3em] text-slate-400">
+        {% if assigned_count or pending_count %}
+          {{ assigned_count }} assigned · {{ pending_count }} pending
+        {% else %}
+          No records selected
+        {% endif %}
+      </span>
+    </div>
+    <form method="get" class="mt-6 flex flex-wrap items-end gap-3">
+      <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500" for="absence-date">Choose date</label>
+      <select
+        name="date"
+        id="absence-date"
+        class="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
+      >
+        <option value="" disabled {% if not selected_date %}selected{% endif %}>Select a date</option>
+        {% for option in date_options %}
+        <option value="{{ option.key }}" {% if option.key == selected_date %}selected{% endif %}>
+          {{ option.key }}{% if option.label %} · {{ option.label }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      <button
+        type="submit"
+        class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white hover:bg-slate-800"
+      >
+        Load date
+      </button>
+      {% if selected_day_label %}
+      <p class="text-xs text-slate-500">Day: <span class="font-semibold text-slate-900">{{ selected_day_label }}</span></p>
+      {% endif %}
+    </form>
+  </section>
+
+  {% if not date_options %}
+  <section class="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 shadow">
+    No absences have been recorded yet.
+  </section>
+  {% else %}
+  <section class="space-y-6">
+    {% if rows %}
+    {% for entry in rows %}
+    <article class="space-y-2 rounded-3xl border border-slate-200 bg-white p-6 shadow">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ entry.leave_type or "Leave" }}</p>
+          <h2 class="text-xl font-semibold text-slate-900">{{ entry.teacher }}</h2>
+          <p class="text-[11px] text-slate-500">{{ entry.teacher_email or "No email provided" }}</p>
+        </div>
+        <span class="text-xs font-semibold uppercase tracking-[0.3em] {% if entry.request_id in assigned_ids %}text-emerald-600{% else %}text-rose-600{% endif %}">
+          {% if entry.request_id in assigned_ids %}Assigned{% else %}Pending{% endif %}
+        </span>
+      </div>
+      <div class="grid gap-2 text-sm text-slate-600">
+        <p>
+          <span class="font-semibold text-slate-900">Dates:</span>
+          {{ entry.leave_start }} → {{ entry.leave_end }}
+        </p>
+        <p>
+          <span class="font-semibold text-slate-900">Status:</span>
+          {{ entry.status or "pending" }}
+        </p>
+        {% if entry.reason %}
+        <p>
+          <span class="font-semibold text-slate-900">Reason:</span>
+          {{ entry.reason }}
+        </p>
+        {% endif %}
+        <p class="text-[11px] text-slate-400">
+          Request {{ entry.request_id or "unknown" }} · Recorded {{ entry.recorded_at or "timestamp unavailable" }}
+        </p>
+      </div>
+    </article>
+    {% endfor %}
+    {% else %}
+    <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 shadow">
+      No absences were recorded for {{ selected_date }} yet.
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
