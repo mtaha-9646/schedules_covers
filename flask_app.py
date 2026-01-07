@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 import os
 import subprocess
 
@@ -9,7 +9,7 @@ from typing import Any
 
 from cover_assignment import CoverAssignmentManager
 from covers_service import CoversManager
-from schedule_service import DAY_LABELS, ORDERED_PERIODS, ScheduleManager
+from schedule_service import DAY_LABELS, ORDERED_PERIODS, ScheduleManager, WEEKDAY_TO_DAY_CODE
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "schedules.xlsx")
@@ -72,17 +72,38 @@ def availability():
 def check_availability():
     period_raw = request.args.get("period")
     day_raw = request.args.get("day")
-    if not period_raw or not day_raw:
-        return jsonify({"error": "Both 'day' and 'period' query parameters are required"}), 400
+    day_raw = request.args.get("day")
+    date_raw = request.args.get("date")
+    if not period_raw or not day_raw or not date_raw:
+        return jsonify({"error": "Parameters 'date', 'day', and 'period' are all required"}), 400
+    try:
+        requested_date = datetime.fromisoformat(date_raw).date()
+    except ValueError:
+        return jsonify({"error": f"Could not parse date '{date_raw}'"}), 400
     period_label = manager.normalize_period(period_raw) or period_raw.strip()
-    day_code = manager.normalize_day(day_raw)
-    if not day_code:
+    derived_day_code = DAY_CODE_BY_WEEKDAY.get(requested_date.weekday())
+    if not derived_day_code:
+        return jsonify({"error": "Date falls outside supported weekdays"}), 400
+    normalized_day = manager.normalize_day(day_raw)
+    if not normalized_day:
         return jsonify({"error": f"Could not parse day '{day_raw}'"}), 400
-    available = manager.teachers_available(day_code, period_label)
+    if normalized_day != derived_day_code:
+        return (
+            jsonify(
+                {
+                    "error": "Specified day does not match provided date",
+                    "date_day": derived_day_code,
+                    "requested_day": normalized_day,
+                }
+            ),
+            400,
+        )
+    available = manager.teachers_available(derived_day_code, period_label)
     return jsonify(
         {
-            "day": day_code,
-            "day_label": DAY_LABELS.get(day_code, day_code),
+            "date": requested_date.isoformat(),
+            "day": derived_day_code,
+            "day_label": DAY_LABELS.get(derived_day_code, derived_day_code),
             "period": period_label,
             "count": len(available),
             "available": available,

@@ -46,6 +46,7 @@ class CoverAssignmentManager:
         self.covers_manager = covers_manager
         self.storage_path = storage_path or ASSIGNMENTS_FILE
         self.assignments: dict[str, list[dict[str, Any]]] = self._load_assignments()
+        self.schedule_manager.rebuild_cover_assignments(self.assignments)
         self._excluded_slugs: set[str] = self._load_exclusions()
 
     def _load_assignments(self) -> dict[str, list[dict[str, Any]]]:
@@ -101,6 +102,10 @@ class CoverAssignmentManager:
                     os.remove(tmp_path)
                 except OSError:
                     pass
+
+    def _persist_assignments(self) -> None:
+        self._save_assignments()
+        self.schedule_manager.rebuild_cover_assignments(self.assignments)
 
     def assign_for_record(self, record: Dict[str, Any]) -> None:
         absent_email = record.get("teacher_email")
@@ -334,7 +339,7 @@ class CoverAssignmentManager:
             "day_label": cover["day"]["label"],
         }
         self.assignments.setdefault(date_key, []).append(assignment)
-        self._save_assignments()
+        self._persist_assignments()
 
     def _assignment_exists(
         self,
@@ -381,7 +386,7 @@ class CoverAssignmentManager:
                     entry["cover_free_periods"] = day_summary["free_periods"]
                     entry["cover_scheduled"] = day_summary["scheduled_count"]
                     entry["cover_max_periods"] = day_summary["max_periods"]
-        self._save_assignments()
+        self._persist_assignments()
         return True
 
     def _covers_for_teacher_on_date(self, date_key: str, slug: str) -> int:
@@ -431,7 +436,7 @@ class CoverAssignmentManager:
 
     def reset_assignments(self) -> None:
         self.assignments = {}
-        self._save_assignments()
+        self._persist_assignments()
 
     def excluded_teacher_slugs(self) -> set[str]:
         return set(self._excluded_slugs)

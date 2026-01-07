@@ -5,6 +5,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT}"
 
+# --- ADD THIS LINE HERE ---
+# Set the specific path to your WSGI file
+PYTHON_ANYWHERE_WSGI="/var/www/coveralreef_pythonanywhere_com_wsgi.py"
+# --------------------------
+
 echo "Starting deploy at $(date -u)"
 
 # Pull latest from tracked branch; adjust if you want a specific remote/branch

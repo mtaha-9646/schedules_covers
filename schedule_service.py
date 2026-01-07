@@ -1,5 +1,7 @@
 from __future__ import annotations
 import re
+from datetime import datetime
+from typing import Any
 
 import pandas as pd
 
@@ -12,6 +14,8 @@ DAY_LABELS = {
     "Fr": "Friday",
 }
 DAY_INDEX = {code: idx for idx, code in enumerate(DAY_ORDER)}
+WEEKDAY_TO_DAY_CODE = {idx: code for idx, code in enumerate(DAY_ORDER)}
+DAY_LABEL_TO_CODE = {label: code for code, label in DAY_LABELS.items()}
 NON_CLASS_DETAILS = {"homeroom"}
 
 PERIOD_CANONICAL = {
@@ -56,6 +60,7 @@ class ScheduleManager:
     def __init__(self, excel_path: str):
         self.excel_path = excel_path
         self._df = self._load_schedule()
+        self._dynamic_rows = pd.DataFrame(columns=self._df.columns)
         self._course_count_column = self._select_course_count_column()
         self._manifest = self._load_teacher_manifest()
         self._teachers = self._build_teacher_index()
@@ -64,10 +69,84 @@ class ScheduleManager:
     def reload_data(self) -> None:
         """Reload the schedule data from disk, rebuilding teacher metadata."""
         self._df = self._load_schedule()
+        self._dynamic_rows = pd.DataFrame(columns=self._df.columns)
         self._course_count_column = self._select_course_count_column()
         self._manifest = self._load_teacher_manifest()
         self._teachers = self._build_teacher_index()
         self._email_index = self._build_email_index()
+
+    def _combined_schedule_df(self) -> pd.DataFrame:
+        if self._dynamic_rows.empty:
+            return self._df
+        return pd.concat([self._df, self._dynamic_rows], ignore_index=True)
+
+    def clear_cover_assignments(self) -> None:
+        self._dynamic_rows = pd.DataFrame(columns=self._df.columns)
+
+    def rebuild_cover_assignments(
+        self, assignments: dict[str, list[dict[str, Any]]]
+    ) -> None:
+        self.clear_cover_assignments()
+        for rows in assignments.values():
+            for entry in rows:
+                self._append_cover_row(entry)
+
+    def _append_cover_row(self, assignment: dict[str, Any]) -> None:
+        if not assignment:
+            return
+        teacher_name = assignment.get("cover_teacher")
+        if not teacher_name:
+            return
+        day_code = self._day_code_for_assignment(assignment)
+        period_label = str(assignment.get("period_label") or assignment.get("period_raw") or "Cover").strip()
+        period_raw = str(assignment.get("period_raw") or assignment.get("period_label") or period_label).strip()
+        period_group = self._normalize_period(period_label) or self._normalize_period(period_raw) or period_label
+        period_rank = self._period_rank(period_group or period_raw) or len(ORDERED_PERIODS)
+        details = str(assignment.get("class_details") or assignment.get("class_subject") or "Cover duty").strip()
+        grade_value = assignment.get("class_grade") or ""
+        grade_detected = self._detect_grade(str(grade_value)) or self._detect_grade(details)
+        cover_slug = assignment.get("cover_slug")
+        teacher_meta = self.get_teacher(cover_slug) if cover_slug else None
+        course_total = teacher_meta.get("course_total") if teacher_meta else 0
+        email = assignment.get("cover_email") or (teacher_meta.get("email") if teacher_meta else None)
+        day_label = DAY_LABELS.get(day_code) if day_code else assignment.get("day_label") or "Cover"
+        class_subject = assignment.get("class_subject")
+        subject_value = class_subject or (teacher_meta.get("subject") if teacher_meta else None) or "General"
+        row = {
+            "Teacher": teacher_name,
+            "Day": day_label,
+            "Period": period_label,
+            "Details": details,
+            "course_count": course_total or 0,
+            "email": email or "schedule@charterschools.ae",
+            "subject": subject_value,
+            "DayCode": day_code or "",
+            "PeriodRaw": period_raw,
+            "PeriodGroup": period_group,
+            "PeriodRank": period_rank,
+            "GradeDetected": grade_detected,
+            "DetailsDisplay": details,
+        }
+        self._dynamic_rows = pd.concat(
+            [self._dynamic_rows, pd.DataFrame([row])],
+            ignore_index=True,
+        )
+
+    def _day_code_for_assignment(self, assignment: dict[str, Any]) -> str | None:
+        label = assignment.get("day_label")
+        if label:
+            normalized = label.strip()
+            code = DAY_LABEL_TO_CODE.get(normalized) or DAY_LABEL_TO_CODE.get(normalized.title())
+            if code:
+                return code
+        date_value = assignment.get("date")
+        if date_value:
+            try:
+                parsed = datetime.fromisoformat(date_value)
+                return WEEKDAY_TO_DAY_CODE.get(parsed.weekday())
+            except ValueError:
+                pass
+        return None
 
     def _load_schedule(self) -> pd.DataFrame:
         df = pd.read_excel(self.excel_path)
@@ -359,7 +438,8 @@ class ScheduleManager:
         meta = self.get_teacher(slug)
         if not meta:
             return None
-        schedule_df = self._df[self._df["Teacher"] == meta["name"]]
+        combined = self._combined_schedule_df()
+        schedule_df = combined[combined["Teacher"] == meta["name"]]
         schedule_by_day = []
         for day_code in DAY_ORDER:
             day_name = DAY_LABELS.get(day_code, day_code)
@@ -433,8 +513,9 @@ class ScheduleManager:
         }
 
     def teachers_available(self, day_code: str, period_label: str) -> list[dict]:
-        scheduled = self._df[
-            (self._df["DayCode"] == day_code) & (self._df["PeriodGroup"] == period_label)
+        current = self._combined_schedule_df()
+        scheduled = current[
+            (current["DayCode"] == day_code) & (current["PeriodGroup"] == period_label)
         ]["Teacher"]
         scheduled_set = set(scheduled)
         available = []
@@ -444,8 +525,9 @@ class ScheduleManager:
         return available
 
     def teachers_occupied(self, day_code: str, period_label: str) -> list[dict]:
-        scheduled = self._df[
-            (self._df["DayCode"] == day_code) & (self._df["PeriodGroup"] == period_label)
+        current = self._combined_schedule_df()
+        scheduled = current[
+            (current["DayCode"] == day_code) & (current["PeriodGroup"] == period_label)
         ]
         result = {}
         for _, row in scheduled.iterrows():
