@@ -97,6 +97,7 @@
           <th class="px-4 py-3 text-left">Dates</th>
           <th class="px-4 py-3 text-left">Status</th>
           <th class="px-4 py-3 text-left">Reason</th>
+          <th class="px-4 py-3 text-left">Grade / Level</th>
           <th class="px-4 py-3 text-left">Assignment</th>
         </tr>
       </thead>
@@ -114,6 +115,10 @@
           </td>
           <td class="px-4 py-3 text-slate-900">{{ entry.status or "pending" }}</td>
           <td class="px-4 py-3 text-sm text-slate-500">{{ entry.reason or "No reason provided" }}</td>
+          <td class="px-4 py-3 text-sm text-slate-500">
+            <span class="block font-semibold text-slate-900">{{ entry.grade_display }}</span>
+            <span class="text-[11px] text-slate-500">{{ entry.level_label }}</span>
+          </td>
           <td class="px-4 py-3">
             {% if entry.request_id in assigned_ids %}
             <span class="text-emerald-600 font-semibold uppercase tracking-[0.3em] text-[10px]">Assigned</span>

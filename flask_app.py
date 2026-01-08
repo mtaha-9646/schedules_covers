@@ -367,6 +367,21 @@ def absences_overview():
     if not selected_date and date_keys:
         selected_date = date_keys[-1]
     rows = records_by_date.get(selected_date, [])
+    enriched_rows: list[dict[str, Any]] = []
+    for entry in rows:
+        slug = entry.get("teacher_slug")
+        meta = manager.get_teacher(slug) if slug else None
+        level_label = meta.get("level_label") if meta else entry.get("level_label") or "General"
+        grade_levels = meta.get("grade_levels") if meta else []
+        grade_levels_sorted = sorted(set(grade_levels)) if grade_levels else []
+        if grade_levels_sorted:
+            grade_display = ", ".join(f"G{level}" for level in grade_levels_sorted)
+        else:
+            grade_display = level_label
+        enriched_entry = entry.copy()
+        enriched_entry["level_label"] = level_label
+        enriched_entry["grade_display"] = grade_display
+        enriched_rows.append(enriched_entry)
 
     assigned_ids = assignment_manager.assigned_request_ids()
     assigned_count = sum(1 for entry in rows if entry.get("request_id") in assigned_ids)
@@ -394,7 +409,7 @@ def absences_overview():
 
     return render_template(
         "absences.html",
-        rows=rows,
+        rows=enriched_rows,
         date_options=date_options,
         selected_date=selected_date,
         selected_day_label=selected_day_label,
