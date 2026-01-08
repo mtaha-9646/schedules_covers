@@ -20,3 +20,22 @@ body {
   left: 1rem;
   top: 1rem;
 }
+
+@media print {
+  body {
+    background-color: #fff;
+    color: #0f172a;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  th, td {
+    border: 1px solid #e2e8f0;
+    padding: 0.4rem;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

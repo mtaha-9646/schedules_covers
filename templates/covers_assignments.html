@@ -51,8 +51,37 @@
           {% endif %}
         </div>
         {% if rows %}
+        <div class="flex flex-wrap gap-2 mb-3 no-print">
+          <button
+            type="button"
+            data-table-action="print"
+            data-table-target="#assignments-table"
+            data-table-title="assignments"
+            class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+          >
+            Print table
+          </button>
+          <button
+            type="button"
+            data-table-action="save-pdf"
+            data-table-target="#assignments-table"
+            data-table-title="assignments"
+            class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+          >
+            Save PDF
+          </button>
+          <button
+            type="button"
+            data-table-action="export"
+            data-table-target="#assignments-table"
+            data-table-title="assignments"
+            class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+          >
+            Export Excel
+          </button>
+        </div>
         <div class="mt-4 overflow-auto rounded-2xl border border-slate-100">
-          <table class="min-w-full text-sm text-slate-600">
+          <table id="assignments-table" class="min-w-full text-sm text-slate-600">
             <thead class="bg-slate-50 text-xs uppercase tracking-[0.3em] text-slate-400">
               <tr>
                 <th class="px-4 py-3 text-left">Absent</th>
