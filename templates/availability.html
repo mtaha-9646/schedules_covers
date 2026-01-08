@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow space-y-6">
+    <div>
+      <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Live availability</p>
+      <h1 class="text-3xl font-semibold text-slate-900">Period readiness table</h1>
+      <p class="mt-1 text-sm text-slate-500">Run the checker to display every teacher with their current availability status, then switch between available or occupied views and print the roster.</p>
+    </div>
+    <form id="availability-form" class="grid gap-3 sm:grid-cols-4">
+      <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">Day</label>
+      <select id="availability-day" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm" name="day">
+        {% for code, label in days.items() %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">Period</label>
+      <select id="availability-period" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm" name="period">
+        {% for period in period_options %}
+        <option value="{{ period }}">{{ period }}</option>
+        {% endfor %}
+      </select>
+      <button id="run-availability" type="button" class="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400">Run availability</button>
+    </form>
+    <div class="flex flex-wrap items-center gap-3">
+      <button type="button" data-status-filter="available" class="status-toggle rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600">Available</button>
+      <button type="button" data-status-filter="occupied" class="status-toggle rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600">Occupied</button>
+      <button id="availability-print" type="button" class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600">Print table</button>
+      <p id="availability-summary" class="text-xs text-slate-500"></p>
+    </div>
+    <div class="overflow-auto">
+      <table class="min-w-full text-sm text-slate-600">
+        <thead class="bg-slate-50 text-xs uppercase tracking-[0.3em] text-slate-400">
+          <tr>
+            <th class="px-4 py-3 text-left">Teacher</th>
+            <th class="px-4 py-3 text-left">Subject</th>
+            <th class="px-4 py-3 text-left">Grade level</th>
+            <th class="px-4 py-3 text-left">Level label</th>
+            <th class="px-4 py-3 text-left">Status</th>
+          </tr>
+        </thead>
+        <tbody id="availability-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+  const daySelect = document.querySelector("#availability-day");
+  const periodSelect = document.querySelector("#availability-period");
+  const tableBody = document.querySelector("#availability-table-body");
+  const summary = document.querySelector("#availability-summary");
+  const statusButtons = document.querySelectorAll("[data-status-filter]");
+  const printButton = document.querySelector("#availability-print");
+  let availabilityRows = [];
+  let currentFilter = "available";
+
+  const updateSummary = () => {
+    if (!availabilityRows.length) {
+      summary.textContent = "Select a day and period, then run availability.";
+      return;
+    }
+    const counts = availabilityRows.reduce(
+      (acc, row) => {
+        acc[row.status] = (acc[row.status] || 0) + 1;
+        return acc;
+      },
+      { available: 0, occupied: 0 }
+    );
+    summary.textContent = `Available: ${counts.available} · Occupied: ${counts.occupied} · Showing ${currentFilter}`;
+  };
+
+  const renderTable = () => {
+    const filtered = availabilityRows.filter((row) => row.status === currentFilter);
+    tableBody.innerHTML = filtered.length
+      ? filtered
+          .map(
+            (row) => `
+            <tr class="border-t border-slate-100 text-xs">
+              <td class="px-4 py-3 font-semibold text-slate-900">${row.name}</td>
+              <td class="px-4 py-3">${row.subject || "General"}</td>
+              <td class="px-4 py-3">
+                ${row.grade_display || row.level_label || "General"}
+              </td>
+              <td class="px-4 py-3">${row.level_label || "General"}</td>
+              <td class="px-4 py-3">
+                <span class="${row.status === "available" ? "text-emerald-600" : "text-rose-600"} font-semibold uppercase tracking-[0.3em] text-[10px]">${row.status}</span>
+              </td>
+            </tr>
+          `
+          )
+          .join("")
+      : `<tr><td class="px-4 py-6 text-center text-xs text-slate-500" colspan="5">No teachers available for ${currentFilter} yet.</td></tr>`;
+    updateSummary();
+  };
+
+  const updateStatusButtons = () => {
+    statusButtons.forEach((button) => {
+      const status = button.getAttribute("data-status-filter");
+      button.classList.toggle("bg-slate-900", status === currentFilter);
+      button.classList.toggle("text-white", status === currentFilter);
+      button.classList.toggle("text-slate-600", status !== currentFilter);
+    });
+  };
+
+  const loadAvailability = async () => {
+    const day = daySelect.value;
+    const period = periodSelect.value;
+    tableBody.innerHTML = `<tr><td class="px-4 py-6 text-center text-xs text-slate-500" colspan="5">Loading availability…</td></tr>`;
+    try {
+      const response = await fetch(`/api/availability?day=${encodeURIComponent(day)}&period=${encodeURIComponent(period)}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load availability");
+      const available = Array.isArray(payload.available) ? payload.available : [];
+      const occupied = Array.isArray(payload.occupied) ? payload.occupied : [];
+      const enrich = (row, status) => ({
+        ...row,
+        status,
+        grade_display: row.grade_levels && row.grade_levels.length
+          ? row.grade_levels.map((value) => `G${value}`).join(", ")
+          : row.level_label,
+      });
+      availabilityRows = [
+        ...available.map((row) => enrich(row, "available")),
+        ...occupied.map((row) => enrich(row, "occupied")),
+      ];
+      renderTable();
+    } catch (error) {
+      tableBody.innerHTML = `<tr><td class="px-4 py-6 text-center text-xs text-red-500" colspan="5">${error.message}</td></tr>`;
+      summary.textContent = error.message;
+    }
+  };
+
+  statusButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      currentFilter = button.getAttribute("data-status-filter");
+      updateStatusButtons();
+      renderTable();
+    });
+  });
+
+  document.querySelector("#run-availability").addEventListener("click", () => {
+    loadAvailability();
+  });
+
+  printButton.addEventListener("click", () => {
+    window.print();
+  });
+
+  loadAvailability();
+  updateStatusButtons();
+  renderTable();
+</script>
+{% endblock %}

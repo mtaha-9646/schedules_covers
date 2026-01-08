@@ -32,31 +32,37 @@
         <p class="text-sm text-slate-500">Support / floating</p>
       </div>
     </div>
+    <section class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-[11px] uppercase tracking-[0.3em] text-slate-500 mb-3">Coverage this week</p>
+      <div class="overflow-auto">
+        <table class="min-w-full text-xs text-slate-600">
+          <thead class="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+            <tr>
+              <th class="px-3 py-2 text-left">Day</th>
+              <th class="px-3 py-2 text-left">Covered periods</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in coverage_summary %}
+            <tr class="border-t border-slate-100 text-sm {% if item.is_today %}bg-slate-50{% endif %}">
+              <td class="px-3 py-2 font-semibold {% if item.is_today %}text-slate-900{% else %}text-slate-600{% endif %}">{{ item.label }}</td>
+              <td class="px-3 py-2 {% if item.is_today %}text-emerald-600 font-semibold{% else %}text-slate-600{% endif %}">{{ item.count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
   </section>
 
-  <section class="grid gap-6 rounded-3xl border border-slate-200 bg-white p-6 shadow md:grid-cols-[2fr_1fr]">
-    <div>
-      <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Availability checker</p>
-      <h2 class="mt-1 text-2xl font-semibold text-slate-900">Live period readiness</h2>
-      <p class="text-sm text-slate-500">Click run to inspect who is free versus booked for any period.</p>
-    </div>
-    <form id="availability-form" class="grid gap-3" onsubmit="return false;">
-      <label class="text-xs uppercase tracking-[0.3em] text-slate-500">Day</label>
-      <select id="day-select" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm">
-        {% for code, label in days.items() %}
-        <option value="{{ code }}">{{ label }}</option>
-        {% endfor %}
-      </select>
-      <label class="text-xs uppercase tracking-[0.3em] text-slate-500">Period</label>
-      <select id="period-select" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm">
-        {% for period in period_options %}
-        <option value="{{ period }}">{{ period }}</option>
-        {% endfor %}
-      </select>
-      <button id="check-availability" type="button" class="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400">Run availability</button>
-    </form>
-    <div id="availability-result" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-      Select a day and period, then run the availability check.
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Availability checker</p>
+        <h2 class="mt-1 text-2xl font-semibold text-slate-900">Live period readiness</h2>
+        <p class="text-sm text-slate-500">Switch to the dedicated Availability table to see each teacher’s status by day and period, then print or download that data.</p>
+      </div>
+      <a href="{{ url_for('availability_page') }}" class="rounded-2xl border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Open availability table</a>
     </div>
   </section>
 
@@ -116,30 +122,5 @@
 
   searchInput.addEventListener("input", filterCards);
   typeFilter.addEventListener("change", filterCards);
-
-  const availabilityResult = document.querySelector("#availability-result");
-  document.querySelector("#check-availability").addEventListener("click", async () => {
-    const day = document.querySelector("#day-select").value;
-    const period = document.querySelector("#period-select").value;
-    availabilityResult.textContent = "Looking up availability...";
-    try {
-      const response = await fetch(`/api/availability?day=${encodeURIComponent(day)}&period=${encodeURIComponent(period)}`);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Unable to fetch availability");
-      const available = payload.available || [];
-      const occupied = payload.occupied || [];
-      availabilityResult.innerHTML = `
-        <p class="text-sm font-semibold text-emerald-600">${available.length} free &middot; ${occupied.length} booked &middot; ${payload.period}</p>
-        <div class="mt-3 space-y-2 text-sm text-slate-600">
-          <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Available</p>
-          <p>${available.map((t) => `${t.name} &middot; ${t.level_label}`).join(" &middot; ") || "None"}</p>
-          <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Occupied</p>
-          <p>${occupied.map((o) => `${o.name} &middot; ${o.subject}`).join(" &middot; ") || "None"}</p>
-        </div>
-      `;
-    } catch (error) {
-      availabilityResult.innerHTML = `<p class="text-sm text-red-500">${error.message}</p>`;
-    }
-  });
 </script>
 {% endblock %}

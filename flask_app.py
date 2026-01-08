@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date, datetime
 import os
 import subprocess
@@ -10,7 +11,13 @@ from typing import Any
 from assignment_settings import AssignmentSettingsManager
 from cover_assignment import CoverAssignmentManager
 from covers_service import CoversManager
-from schedule_service import DAY_LABELS, ORDERED_PERIODS, ScheduleManager, WEEKDAY_TO_DAY_CODE
+from schedule_service import (
+    DAY_LABELS,
+    DAY_ORDER,
+    ORDERED_PERIODS,
+    ScheduleManager,
+    WEEKDAY_TO_DAY_CODE,
+)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "schedules.xlsx")
@@ -28,12 +35,33 @@ assignment_manager.sync_existing_records()
 
 @app.route("/")
 def index():
+    coverage_counts = Counter()
+    assignments = assignment_manager.get_assignments()
+    for day_key, rows in assignments.items():
+        try:
+            weekday = datetime.fromisoformat(day_key).weekday()
+        except ValueError:
+            continue
+        code = WEEKDAY_TO_DAY_CODE.get(weekday)
+        if code:
+            coverage_counts[code] += len(rows)
+    today_code = WEEKDAY_TO_DAY_CODE.get(date.today().weekday())
+    coverage_summary = [
+        {
+            "code": code,
+            "label": DAY_LABELS.get(code, code),
+            "count": coverage_counts.get(code, 0),
+            "is_today": code == today_code,
+        }
+        for code in DAY_ORDER
+    ]
     return render_template(
         "teachers.html",
         teachers=manager.teacher_cards,
         stats=manager.stats,
         days=DAY_LABELS,
         period_options=ORDERED_PERIODS,
+        coverage_summary=coverage_summary,
     )
 
 
@@ -228,6 +256,108 @@ def assignment_settings():
     )
 
 
+def _build_leaderboard_entries() -> list[dict[str, Any]]:
+    stats: dict[str, dict[str, Any]] = {}
+    all_assignments = assignment_manager.get_assignments()
+    for rows in all_assignments.values():
+        for entry in rows:
+            slug = entry.get("cover_slug")
+            name = entry.get("cover_teacher") or slug
+            if not name:
+                continue
+            key = slug or name
+            meta = manager.get_teacher(slug) if slug else None
+            if key not in stats:
+                subject = meta.get("subject") if meta else entry.get("cover_subject") or "General"
+                level_label = meta.get("level_label") if meta else "General"
+                grade_levels = meta.get("grade_levels") if meta else []
+                grade_levels_sorted = sorted(set(grade_levels)) if grade_levels else []
+                if grade_levels_sorted:
+                    grade_display = ", ".join(f"G{level}" for level in grade_levels_sorted)
+                else:
+                    grade_display = level_label
+                stats[key] = {
+                    "slug": slug,
+                    "name": name,
+                    "subject": subject,
+                    "level_label": level_label,
+                    "grade_levels": grade_levels or [],
+                    "grade_display": grade_display,
+                    "total_covers": 0,
+                }
+            stats[key]["total_covers"] += 1
+    leaderboard = sorted(
+        stats.values(),
+        key=lambda item: item["total_covers"],
+        reverse=True,
+    )
+    return leaderboard
+
+
+@app.route("/leaderboards")
+def leaderboards():
+    entries = _build_leaderboard_entries()
+    return render_template("leaderboards.html", entries=entries)
+
+
+@app.route("/leaderboards/<slug>")
+def leaderboard_detail(slug: str):
+    if not slug:
+        abort(404)
+    teacher_meta = manager.get_teacher(slug)
+    if not teacher_meta:
+        abort(404)
+    covered: dict[str, dict[str, Any]] = {}
+    assignments = assignment_manager.get_assignments()
+    total_covers = 0
+    for date_key, rows in assignments.items():
+        for entry in rows:
+            if entry.get("cover_slug") != slug:
+                continue
+            total_covers += 1
+            absent = entry.get("absent_teacher") or "Unknown"
+            record = covered.setdefault(absent, {"count": 0, "dates": [], "subjects": set()})
+            record["count"] += 1
+            record["dates"].append(date_key)
+            record["subjects"].add(entry.get("class_subject") or entry.get("subject") or "General")
+    covered_list = sorted(
+        [
+            {
+                "name": name,
+                "count": meta["count"],
+                "dates": sorted(set(meta["dates"])),
+                "subjects": sorted(meta["subjects"]),
+            }
+            for name, meta in covered.items()
+        ],
+        key=lambda item: item["count"],
+        reverse=True,
+    )
+    grade_levels = teacher_meta.get("grade_levels") or []
+    grade_levels_sorted = sorted(set(grade_levels)) if grade_levels else []
+    grade_display = (
+        ", ".join(f"G{level}" for level in grade_levels_sorted)
+        if grade_levels_sorted
+        else teacher_meta.get("level_label", "General")
+    )
+    return render_template(
+        "leaderboards_detail.html",
+        teacher=teacher_meta,
+        total_covers=total_covers,
+        covered_list=covered_list,
+        grade_display=grade_display,
+    )
+
+
+@app.route("/availability")
+def availability_page():
+    return render_template(
+        "availability.html",
+        days=DAY_LABELS,
+        period_options=ORDERED_PERIODS,
+    )
+
+
 @app.route("/absences")
 def absences_overview():
     records_by_date = covers_manager.get_all_records()
@@ -281,34 +411,8 @@ def assign_missing_absences():
     return redirect(url_for("absences_overview"))
 
 
-@app.route("/covers/manual")
-def covers_manual():
-    assignments = assignment_manager.get_assignments()
-    return render_template("covers_manual.html", assignments=assignments)
-
-
-@app.route("/covers/upcoming")
-def covers_upcoming():
-    assignments = assignment_manager.get_assignments()
-    today_key = date.today().isoformat()
-    upcoming_entries = sorted(
-        ((day, rows) for day, rows in assignments.items() if day >= today_key),
-        key=lambda item: item[0],
-    )
-    upcoming = [
-        {"date": day, "rows": rows, "subjects": sorted({row.get("class_subject") or row.get("subject") or "General" for row in rows})}
-        for day, rows in upcoming_entries
-    ]
-    total_covers = sum(len(item["rows"]) for item in upcoming)
-    return render_template(
-        "covers_upcoming.html",
-        upcoming=upcoming,
-        total_covers=total_covers,
-    )
-
-
-@app.route("/covers/manual/edit/<path:date_key>/<int:item_idx>", methods=["GET", "POST"])
-def covers_manual_edit(date_key: str, item_idx: int):
+@app.route("/assignments/edit/<path:date_key>/<int:item_idx>", methods=["GET", "POST"])
+def assignment_edit(date_key: str, item_idx: int):
     assignments = assignment_manager.get_assignments()
     rows = assignments.get(date_key)
     if not rows or item_idx < 0 or item_idx >= len(rows):
@@ -332,12 +436,14 @@ def covers_manual_edit(date_key: str, item_idx: int):
         success = assignment_manager.update_assignment(date_key, item_idx, updates)
         if not success:
             abort(404)
-        return redirect(url_for("covers_manual"))
+        return redirect(url_for("covers_assignments", date=date_key))
     teachers = manager.teacher_cards
     return render_template(
-        "covers_manual_edit.html",
+        "assignment_edit.html",
         entry=entry,
         teachers=teachers,
+        date_key=date_key,
+        item_idx=item_idx,
     )
 
 

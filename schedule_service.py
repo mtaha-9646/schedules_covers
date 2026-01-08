@@ -64,6 +64,7 @@ class ScheduleManager:
         self._course_count_column = self._select_course_count_column()
         self._manifest = self._load_teacher_manifest()
         self._teachers = self._build_teacher_index()
+        self._name_index = self._build_name_index()
         self._email_index = self._build_email_index()
 
     def reload_data(self) -> None:
@@ -73,6 +74,7 @@ class ScheduleManager:
         self._course_count_column = self._select_course_count_column()
         self._manifest = self._load_teacher_manifest()
         self._teachers = self._build_teacher_index()
+        self._name_index = self._build_name_index()
         self._email_index = self._build_email_index()
 
     def _combined_schedule_df(self) -> pd.DataFrame:
@@ -247,6 +249,9 @@ class ScheduleManager:
                 "day_count": 0,
             }
         return teachers
+
+    def _build_name_index(self) -> dict[str, dict]:
+        return {meta["name"]: meta for meta in self._teachers.values()}
 
     def _build_email_index(self) -> dict[str, dict]:
         index = {}
@@ -537,7 +542,17 @@ class ScheduleManager:
                 "details": row["DetailsDisplay"],
                 "subject": row["subject"],
             }
-        return list(result.values())
+        enriched = []
+        for teacher_name, row_data in result.items():
+            meta = self._name_index.get(teacher_name)
+            enriched.append(
+                {
+                    **row_data,
+                    "level_label": meta["level_label"] if meta else "General",
+                    "grade_levels": meta.get("grade_levels", []) if meta else [],
+                }
+            )
+        return enriched
 
     def normalize_day(self, day: str) -> str | None:
         if not day:

@@ -2,12 +2,12 @@
 
 {% block content %}
 <div class="space-y-6">
-  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Absence tracker</p>
-        <h1 class="text-2xl font-semibold text-slate-900">Incoming absences</h1>
-        <p class="text-sm text-slate-500">Review every recorded leave request by day and see whether it already has an assignment.</p>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Absence records</p>
+        <h1 class="text-2xl font-semibold text-slate-900">Daily absence log</h1>
+        <p class="text-sm text-slate-500">Review the recorded leaves and immediately see whether each has an assignment.</p>
       </div>
       <span class="text-xs uppercase tracking-[0.3em] text-slate-400">
         {% if assigned_count or pending_count %}
@@ -17,22 +17,22 @@
         {% endif %}
       </span>
     </div>
-    <form method="post" action="{{ url_for('assign_missing_absences') }}" class="mt-4 flex flex-wrap gap-3">
+    <form method="post" action="{{ url_for('assign_missing_absences') }}" class="flex flex-wrap items-center gap-3">
       <button
         type="submit"
         {% if not pending_count %}disabled{% endif %}
-        class="rounded-2xl border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
+        class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
       >
         Assign pending absences ({{ pending_count }})
       </button>
-      <p class="text-xs text-slate-500">This re-runs the assignment logic for every recorded leave, including future dates.</p>
+      <p class="text-xs text-slate-500">Re-run assignments for every recorded leave (includes future dates).</p>
     </form>
-    <form method="get" class="mt-6 flex flex-wrap items-end gap-3">
+    <form method="get" class="mt-4 flex flex-wrap items-end gap-3">
       <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500" for="absence-date">Choose date</label>
       <select
         name="date"
         id="absence-date"
-        class="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
+        class="rounded-2xl border border-slate-200 px-4 py-2 text-sm text-slate-700"
       >
         <option value="" disabled {% if not selected_date %}selected{% endif %}>Select a date</option>
         {% for option in date_options %}
@@ -45,7 +45,7 @@
         type="submit"
         class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white hover:bg-slate-800"
       >
-        Load date
+        Load selection
       </button>
       {% if selected_day_label %}
       <p class="text-xs text-slate-500">Day: <span class="font-semibold text-slate-900">{{ selected_day_label }}</span></p>
@@ -58,45 +58,46 @@
     No absences have been recorded yet.
   </section>
   {% else %}
-  <section class="space-y-6">
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow overflow-auto">
     {% if rows %}
-    {% for entry in rows %}
-    <article class="space-y-2 rounded-3xl border border-slate-200 bg-white p-6 shadow">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ entry.leave_type or "Leave" }}</p>
-          <h2 class="text-xl font-semibold text-slate-900">{{ entry.teacher }}</h2>
-          <p class="text-[11px] text-slate-500">{{ entry.teacher_email or "No email provided" }}</p>
-        </div>
-        <span class="text-xs font-semibold uppercase tracking-[0.3em] {% if entry.request_id in assigned_ids %}text-emerald-600{% else %}text-rose-600{% endif %}">
-          {% if entry.request_id in assigned_ids %}Assigned{% else %}Pending{% endif %}
-        </span>
-      </div>
-      <div class="grid gap-2 text-sm text-slate-600">
-        <p>
-          <span class="font-semibold text-slate-900">Dates:</span>
-          {{ entry.leave_start }} → {{ entry.leave_end }}
-        </p>
-        <p>
-          <span class="font-semibold text-slate-900">Status:</span>
-          {{ entry.status or "pending" }}
-        </p>
-        {% if entry.reason %}
-        <p>
-          <span class="font-semibold text-slate-900">Reason:</span>
-          {{ entry.reason }}
-        </p>
-        {% endif %}
-        <p class="text-[11px] text-slate-400">
-          Request {{ entry.request_id or "unknown" }} · Recorded {{ entry.recorded_at or "timestamp unavailable" }}
-        </p>
-      </div>
-    </article>
-    {% endfor %}
+    <table class="min-w-full text-sm text-slate-600">
+      <thead class="bg-slate-50 text-xs uppercase tracking-[0.3em] text-slate-400">
+        <tr>
+          <th class="px-4 py-3 text-left">Teacher</th>
+          <th class="px-4 py-3 text-left">Leave type</th>
+          <th class="px-4 py-3 text-left">Dates</th>
+          <th class="px-4 py-3 text-left">Status</th>
+          <th class="px-4 py-3 text-left">Reason</th>
+          <th class="px-4 py-3 text-left">Assignment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in rows %}
+        <tr class="border-t border-slate-100 text-xs">
+          <td class="px-4 py-3">
+            <p class="font-semibold text-slate-900">{{ entry.teacher }}</p>
+            <p class="text-[11px] text-slate-500">{{ entry.teacher_email or "Email missing" }}</p>
+          </td>
+          <td class="px-4 py-3">{{ entry.leave_type or "Leave" }}</td>
+          <td class="px-4 py-3">
+            {{ entry.leave_start }} → {{ entry.leave_end }}
+            <p class="text-[11px] text-slate-400">Req {{ entry.request_id or "unknown" }}</p>
+          </td>
+          <td class="px-4 py-3 text-slate-900">{{ entry.status or "pending" }}</td>
+          <td class="px-4 py-3 text-sm text-slate-500">{{ entry.reason or "No reason provided" }}</td>
+          <td class="px-4 py-3">
+            {% if entry.request_id in assigned_ids %}
+            <span class="text-emerald-600 font-semibold uppercase tracking-[0.3em] text-[10px]">Assigned</span>
+            {% else %}
+            <span class="text-rose-600 font-semibold uppercase tracking-[0.3em] text-[10px]">Pending</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     {% else %}
-    <div class="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 shadow">
-      No absences were recorded for {{ selected_date }} yet.
-    </div>
+    <p class="text-sm text-slate-500 text-center">No absences were recorded for {{ selected_date }} yet.</p>
     {% endif %}
   </section>
   {% endif %}

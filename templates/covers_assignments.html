@@ -9,7 +9,6 @@
         <h1 class="text-2xl font-semibold text-slate-900">Automatically generated covers</h1>
         <p class="text-sm text-slate-500">Pick a date and day to focus on that set of assignments.</p>
       </div>
-      <a href="{{ url_for('covers_manual') }}" class="rounded-2xl border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Review manually</a>
     </div>
     <form method="get" class="mt-6 flex flex-col gap-3">
       <label class="text-xs uppercase tracking-[0.3em] text-slate-400" for="assignment-date">Choose date</label>
@@ -62,6 +61,7 @@
                 <th class="px-4 py-3 text-left">Status</th>
                 <th class="px-4 py-3 text-left">Cover load</th>
                 <th class="px-4 py-3 text-left">Assigned</th>
+                <th class="px-4 py-3 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -85,6 +85,14 @@
                 <td class="px-4 py-3 text-slate-900">{{ entry.status or "pending" }}</td>
                 <td class="px-4 py-3 text-[11px] text-slate-500">{{ entry.cover_free_periods }} free / {{ entry.cover_max_periods }} max</td>
                 <td class="px-4 py-3 text-[11px] text-slate-400">{{ entry.cover_assigned_at }}</td>
+                <td class="px-4 py-3">
+                  <a
+                    href="{{ url_for('assignment_edit', date_key=selected_date, item_idx=loop.index0) }}"
+                    class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+                  >
+                    Edit
+                  </a>
+                </td>
               </tr>
               {% endfor %}
             </tbody>
