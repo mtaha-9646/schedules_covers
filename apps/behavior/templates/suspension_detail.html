@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suspension Details</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f7fafc; }
+        .signature-canvas { touch-action: none; }
+        .report-container { max-width: 960px; margin: 1rem auto; background: #fff; padding: 1.25rem; border-radius: 0.75rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1); }
+        .signature-img { height: 80px; max-height: 80px; object-fit: contain; }
+        .signatures-grid { gap: 1rem; }
+        .header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; }
+        .school img { height: 50px; width: auto; }
+        @media (max-width: 640px) {
+            .header { grid-template-columns: 1fr; gap: 0.5rem; }
+        }
+        @page { size: A4 portrait; margin: 12mm; }
+        @media print {
+            html, body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .report-container { box-shadow: none; margin: 0; border-radius: 0; padding: 0; width: auto; zoom: 0.9; }
+            .no-print { display: none !important; }
+            a[href]:after { content: ''; }
+            .meta-grid, .field, .signatures-grid, .sig-card, .grid { break-inside: avoid; page-break-inside: avoid; }
+            img, canvas { max-width: 100% !important; height: auto !important; }
+            h1 { font-size: 20px; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="report-container">
+        <div class="header mb-6">
+            <div class="school"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="School Logo" /></div>
+            <div class="title">
+                <h1 class="text-2xl font-bold">Suspension Report</h1>
+                <p class="text-gray-600">Student: <span class="font-semibold text-gray-800">{{ s.student_name }}</span> ({{ s.esis }})</p>
+                <p class="text-gray-600">Date: {{ s.date_of_suspension.strftime('%Y-%m-%d') }} | Grade/Session: {{ s.grade_class or '' }}</p>
+            </div>
+            <div class="no-print flex items-center gap-2 justify-end">
+                <button id="open-sign-modal" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Sign</button>
+                <button onclick="window.print()" class="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">Print</button>
+                <a href="{{ url_for('behaviour_bp.behaviour_dashboard') }}#tab=suspensions" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Back</a>
+            </div>
+        </div>
+
+        <!-- Student Information -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                <div>
+                    <p class="text-sm text-gray-500">Student ID (ESIS)</p>
+                    <p class="text-lg font-semibold">{{ s.esis }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Student Name</p>
+                    <p class="text-lg font-semibold">{{ s.student_name }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Grade/Class</p>
+                    <p class="text-lg font-semibold">{{ s.grade_class }}</p>
+                </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <p class="text-sm text-gray-500">Date of Suspension</p>
+                    <p class="text-lg font-semibold">{{ s.date_of_suspension.strftime('%Y-%m-%d') }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Duration</p>
+                    <p class="text-lg font-semibold">{{ s.duration }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Assigned Counselor/Teacher</p>
+                    <p class="text-lg font-semibold">{{ s.assigned_staff or '-' }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Parent/Guardian Contacted</p>
+                    <p class="text-lg font-semibold">{{ 'Yes' if s.parent_contacted else 'No' }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Meeting with Parent/Guardian</p>
+                    <p class="text-lg font-semibold">{{ 'Yes' if s.parent_meeting else 'No' }}</p>
+                </div>
+                <div class="md:col-span-2">
+                    <p class="text-sm text-gray-500">Reason for Suspension</p>
+                    <p class="text-gray-800 whitespace-pre-wrap">{{ s.reason or '-' }}</p>
+                </div>
+                <div class="md:col-span-2">
+                    <p class="text-sm text-gray-500">Incident Details</p>
+                    <p class="text-gray-800 whitespace-pre-wrap">{{ s.incident_details or '-' }}</p>
+                </div>
+                <div class="md:col-span-2">
+                    <p class="text-sm text-gray-500">Behavior Plan</p>
+                    <p class="text-gray-800 whitespace-pre-wrap">{{ s.behavior_plan or '-' }}</p>
+                </div>
+                <div class="md:col-span-2">
+                    <p class="text-sm text-gray-500">Reintegration Plan</p>
+                    <p class="text-gray-800 whitespace-pre-wrap">{{ s.reintegration_plan or '-' }}</p>
+                </div>
+                <div class="md:col-span-2">
+                    <p class="text-sm text-gray-500">Notes / Comments</p>
+                    <p class="text-gray-800 whitespace-pre-wrap">{{ s.notes or '-' }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Created At</p>
+                    <p class="text-lg font-semibold">{{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Saved Signatures -->
+        <div class="bg-white p-6 rounded-xl shadow mt-6">
+            <h2 class="text-lg font-semibold mb-3">Signatures</h2>
+            {% if signatures and signatures|length > 0 %}
+            <div class="signatures-grid grid grid-cols-2 md:grid-cols-3">
+                {% for sig in signatures %}
+                <div class="sig-card border rounded-md p-3 bg-white">
+                    <div class="text-sm text-gray-600 mb-2">{{ sig.signer_role }} — <span class="font-semibold text-gray-800">{{ sig.signer_name }}</span></div>
+                    <img src="{{ 'data:image/png;base64,' + sig.image_data if not sig.image_data.startswith('data:') else sig.image_data }}" alt="Signature" class="signature-img w-full border border-gray-200 bg-white" />
+                    <div class="sig-meta mt-2 text-xs text-gray-500">Signed on {{ sig.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-600">No signatures yet. Click Sign to add one.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Sign Modal -->
+    <div id="sign-modal" class="no-print fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+        <div class="bg-white w-full max-w-3xl rounded-lg shadow-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Sign Suspension Report</h3>
+                <button id="close-sign-modal" class="text-gray-600 hover:text-gray-800">✕</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div class="md:col-span-1">
+                    <label class="block text-sm font-medium text-gray-700">Signer Name</label>
+                    <input id="sig-name" type="text" class="mt-1 w-full px-3 py-2 rounded border border-gray-300" placeholder="Full name">
+                </div>
+                <div class="md:col-span-1" id="sig-role-wrap">
+                    <label class="block text-sm font-medium text-gray-700">Role</label>
+                    <select id="sig-role" class="mt-1 w-full px-3 py-2 rounded border border-gray-300">
+                        <option value="Counselor">Counselor</option>
+                        <option value="Parent/Guardian">Parent/Guardian</option>
+                        <option value="Student">Student</option>
+                        <option value="Behaviour Specialist">Behaviour Specialist</option>
+                        <option value="SLT">SLT</option>
+                        <option value="Teacher">Teacher</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Signature</label>
+                <div class="border rounded-md p-2 bg-white">
+                    <canvas id="sign-pad" width="900" height="220" class="w-full border border-gray-200"></canvas>
+                    <div class="mt-2 flex gap-2">
+                        <button id="sig-clear" class="px-3 py-1.5 bg-gray-200 rounded">Clear</button>
+                        <button id="sig-save" class="px-3 py-1.5 bg-indigo-600 text-white rounded">Confirm & Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function(){
+            const modal = document.getElementById('sign-modal');
+            const openBtn = document.getElementById('open-sign-modal');
+            const closeBtn = document.getElementById('close-sign-modal');
+            const nameEl = document.getElementById('sig-name');
+            const roleEl = document.getElementById('sig-role');
+            const canvas = document.getElementById('sign-pad');
+            const clearBtn = document.getElementById('sig-clear');
+            const saveBtn = document.getElementById('sig-save');
+            const ctx = canvas.getContext('2d');
+            canvas.style.touchAction = 'none';
+            const DPR = window.devicePixelRatio || 1;
+            let lw = 800, lh = 200;
+            const setupCanvas = () => {
+                const parent = canvas.parentElement;
+                const w = Math.max(280, Math.floor(parent.clientWidth));
+                const h = Math.max(140, Math.floor(w * 0.25));
+                lw = w; lh = h;
+                canvas.width = w * DPR; canvas.height = h * DPR;
+                canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+                ctx.setTransform(1,0,0,1,0,0);
+                ctx.scale(DPR, DPR); ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111827';
+            };
+            let drawing = false, lastX = 0, lastY = 0;
+            const pos = (e)=>{ const r = canvas.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; };
+            canvas.addEventListener('pointerdown', (e)=>{ e.preventDefault(); drawing=true; const p=pos(e); lastX=p.x; lastY=p.y;});
+            canvas.addEventListener('pointermove', (e)=>{ if(!drawing) return; e.preventDefault(); const p=pos(e); ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(p.x,p.y); ctx.stroke(); lastX=p.x; lastY=p.y; });
+            window.addEventListener('pointerup', ()=>{ drawing=false; });
+            clearBtn.addEventListener('click', ()=> ctx.clearRect(0,0,lw,lh));
+            openBtn.addEventListener('click', ()=>{ modal.classList.remove('hidden'); modal.classList.add('flex'); setupCanvas(); nameEl.focus(); document.body.style.overflow='hidden'; });
+            const closeModal = ()=>{ modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.style.overflow=''; };
+            closeBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', (e)=>{ if (e.target === modal) closeModal(); });
+            window.addEventListener('resize', ()=>{ if (!modal.classList.contains('hidden')) setupCanvas(); });
+
+            const isAdmin = {{ 'true' if session.get('is_admin') else 'false' }};
+            const teacherName = {{ ('"' + (session.get('teacher_name') or '') + '"') | safe }};
+            if (!isAdmin && teacherName) {
+                const nameInput = document.getElementById('sig-name');
+                nameInput.value = teacherName;
+                nameInput.readOnly = true;
+                nameInput.classList.add('bg-gray-100','cursor-not-allowed');
+                const roleSel = document.getElementById('sig-role');
+                const roleWrap = document.getElementById('sig-role-wrap');
+                if (roleSel) roleSel.value = 'Teacher';
+                if (roleWrap) roleWrap.classList.add('hidden');
+            }
+            const btnRow = document.createElement('div'); btnRow.className='mt-2 flex gap-2';
+            if (!isAdmin) {
+                const btnUse = document.createElement('button'); btnUse.type='button'; btnUse.textContent='Use My Signature'; btnUse.className='px-3 py-1.5 bg-slate-600 text-white rounded';
+                btnUse.addEventListener('click', async ()=>{
+                    try {
+                        const resp = await fetch('{{ url_for('behaviour_bp.get_my_signature') }}');
+                        if (!resp.ok) { alert('No saved signature found'); return; }
+                        const js = await resp.json();
+                        const name = document.getElementById('sig-name').value || teacherName;
+                        const role = document.getElementById('sig-role').value;
+                        const res2 = await fetch('{{ url_for('behaviour_bp.add_signature_api') }}', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ entity_type:'suspension', entity_id: {{ s.id }}, signer_name: name, signer_role: role, image_data: js.image_data }) });
+                        if (!res2.ok) { const j = await res2.json().catch(()=>({})); throw new Error(j.error || 'Failed to sign'); }
+                        window.location.reload();
+                    } catch(e){ alert(e.message || e); }
+                });
+                const btnSaveMine = document.createElement('button'); btnSaveMine.type='button'; btnSaveMine.textContent='Save as My Signature'; btnSaveMine.className='px-3 py-1.5 bg-emerald-600 text-white rounded';
+                btnSaveMine.addEventListener('click', async ()=>{
+                    const tmp = document.createElement('canvas'); tmp.width = lw; tmp.height = lh; const tctx = tmp.getContext('2d');
+                    tctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, tmp.width, tmp.height);
+                    const dataURL = tmp.toDataURL('image/png');
+                    const resp = await fetch('{{ url_for('behaviour_bp.save_my_signature') }}', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ image_data: dataURL }) });
+                    if (!resp.ok) { alert('Failed to save'); return; }
+                    alert('Saved as your signature');
+                });
+                btnRow.appendChild(btnUse); btnRow.appendChild(btnSaveMine);
+                canvas.parentElement.appendChild(btnRow);
+            }
+
+            saveBtn.addEventListener('click', async ()=>{
+                const name = nameEl.value.trim();
+                const role = roleEl.value;
+                if (!name) { alert('Enter signer name'); return; }
+                const tmp = document.createElement('canvas'); tmp.width = lw; tmp.height = lh; const tctx = tmp.getContext('2d');
+                tctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, tmp.width, tmp.height);
+                const dataURL = tmp.toDataURL('image/png');
+                try {
+                    const resp = await fetch('{{ url_for('behaviour_bp.add_signature_api') }}', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ entity_type: 'suspension', entity_id: {{ s.id }}, signer_name: name, signer_role: role, image_data: dataURL })
+                    });
+                    if (!resp.ok) { const j = await resp.json().catch(()=>({})); throw new Error(j.error || 'Failed to save signature'); }
+                    window.location.reload();
+                } catch (e) { alert(e.message || e); }
+            });
+        })();
+    </script>
+
+    
+</body>
+</html>

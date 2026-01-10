@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ form.name if form else 'Create Dynamic Form' }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .drag-handle::before { content: '\2630'; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <header class="flex flex-wrap items-center justify-between mb-8 gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-800">{{ form.name if form else 'Create Dynamic Form' }}</h1>
+        <p class="text-sm text-gray-500 mt-1">Build Microsoft Forms-style experiences with drag-and-drop blocks, templates, and live preview.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="{{ url_for('forms_bp.manage_forms') }}" class="px-4 py-2 bg-slate-600 text-white rounded-lg">Back to Forms</a>
+        <a href="{{ url_for('admin_bp.logout') }}" class="px-4 py-2 bg-red-600 text-white rounded-lg">Logout</a>
+      </div>
+    </header>
+
+    <form method="POST" id="form_builder">
+      <input type="hidden" name="fields_payload" id="fields_payload" />
+      <div class="bg-white p-6 rounded-xl shadow mb-6">
+        <label for="form_name" class="block text-sm font-medium text-gray-700 mb-1">Form Name</label>
+        <input type="text" id="form_name" name="name" value="{{ form.name if form else '' }}" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. Incident Follow-Up" required>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-6 gap-6">
+        <section class="xl:col-span-2 bg-white p-6 rounded-xl shadow space-y-6">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">Question Types</h2>
+            <p class="text-sm text-gray-500 mb-4">Drag from the palette or click to insert questions with sensible defaults.</p>
+            <div class="grid grid-cols-1 gap-2">
+              <button type="button" data-add-field="short_text" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-left">Short Text</button>
+              <button type="button" data-add-field="long_text" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-left">Paragraph</button>
+              <button type="button" data-add-field="single_choice" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-left">Single Choice</button>
+              <button type="button" data-add-field="multi_choice" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-left">Multiple Choice</button>
+              <button type="button" data-add-field="date" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-left">Date</button>
+              <button type="button" data-add-field="likert" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-left">Likert Scale</button>
+              <button type="button" data-add-field="file_upload" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-left">File Upload</button>
+              <button type="button" data-add-field="boolean" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-left">Yes / No Toggle</button>
+            </div>
+          </div>
+
+          <div>
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">Quick Templates</h2>
+            <p class="text-sm text-gray-500 mb-3">Jump-start with pre-built collections of questions.</p>
+            <div class="space-y-2">
+              {% for template in form_templates %}
+              <button type="button" data-template-id="{{ template.id }}" class="w-full px-4 py-2 text-left border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg">
+                <div class="font-medium">{{ template.name }}</div>
+                <div class="text-xs text-indigo-500">{{ template.description }}</div>
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="xl:col-span-2 bg-white p-6 rounded-xl shadow">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-800">Form Builder</h2>
+            <span class="text-xs uppercase tracking-wide text-gray-500">Drag to reorder</span>
+          </div>
+          <div id="fields_container" class="space-y-4 min-h-[200px]">
+            <div id="empty_state" class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center text-slate-500 {% if initial_fields %}hidden{% endif %}">
+              Add your first question using the palette on the left.
+            </div>
+          </div>
+        </section>
+
+        <section class="xl:col-span-2 bg-white p-6 rounded-xl shadow">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-800">Live Preview</h2>
+            <span class="text-xs text-gray-500">What teachers will see</span>
+          </div>
+          <div id="preview_container" class="space-y-4">
+            <div class="border border-slate-200 rounded-xl p-4 text-sm text-slate-500">
+              Build your form to preview how it renders for staff.
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between mt-6 gap-4">
+        <a href="{{ url_for('forms_bp.manage_forms') }}" class="px-4 py-2 text-slate-600 hover:text-slate-800">Cancel</a>
+        <button type="submit" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold">Save Form</button>
+      </div>
+    </form>
+  </div>
+
+  <template id="field_template">
+    <div class="field-block border border-slate-200 rounded-xl p-4 bg-white shadow-sm" data-uid="">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="text-sm font-semibold text-slate-800 field-label">Question</div>
+          <div class="text-xs uppercase tracking-wide text-slate-500 field-type-label">Short Text</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" class="text-xs text-slate-500 hover:text-slate-700 drag-handle cursor-move" title="Drag to reorder"></button>
+          <button type="button" class="text-xs text-red-600 hover:text-red-800 remove-field">Remove</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Question Label</label>
+          <input type="text" name="field_label" class="w-full px-3 py-2 border border-slate-200 rounded-lg question-label" placeholder="Enter question prompt">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Field Type</label>
+          <select name="field_type" class="w-full px-3 py-2 border border-slate-200 rounded-lg question-type">
+            <option value="short_text">Short Text</option>
+            <option value="long_text">Paragraph</option>
+            <option value="single_choice">Single Choice</option>
+            <option value="multi_choice">Multiple Choice</option>
+            <option value="date">Date</option>
+            <option value="likert">Likert Scale</option>
+            <option value="file_upload">File Upload</option>
+            <option value="boolean">Yes / No</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 field-config">
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Description</label>
+          <textarea class="w-full px-3 py-2 border border-slate-200 rounded-lg field-description" rows="2" placeholder="Optional helper text"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Required?</label>
+          <select class="w-full px-3 py-2 border border-slate-200 rounded-lg field-required">
+            <option value="false">Optional</option>
+            <option value="true">Required</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-4 field-extra"></div>
+    </div>
+  </template>
+
+  <script>
+    (function(){
+      const formTemplates = {{ form_templates|tojson|safe }};
+      const initialFields = {{ initial_fields|tojson|safe }};
+
+      const fieldsContainer = document.getElementById('fields_container');
+      const previewContainer = document.getElementById('preview_container');
+      const emptyState = document.getElementById('empty_state');
+      const paletteButtons = document.querySelectorAll('[data-add-field]');
+      const templateButtons = document.querySelectorAll('[data-template-id]');
+      const fieldsPayloadInput = document.getElementById('fields_payload');
+
+      function toggleEmptyState() {
+        if (fieldsContainer.querySelectorAll('.field-block').length) {
+          emptyState.classList.add('hidden');
+        } else {
+          emptyState.classList.remove('hidden');
+        }
+      }
+
+      function updatePreview() {
+        const blocks = Array.from(fieldsContainer.querySelectorAll('.field-block'));
+        if (!blocks.length) {
+          previewContainer.innerHTML = '<div class="border border-slate-200 rounded-xl p-4 text-sm text-slate-500">Build your form to preview how it renders for staff.</div>';
+          return;
+        }
+
+        previewContainer.innerHTML = blocks.map(block => {
+          const label = block.querySelector('.question-label').value || 'Untitled question';
+          const type = block.querySelector('.question-type').value;
+          const required = block.querySelector('.field-required').value === 'true';
+          const description = block.querySelector('.field-description').value;
+          return `
+            <div class="border border-slate-200 rounded-xl p-4 bg-white">
+              <div class="text-sm font-semibold text-slate-800 mb-1">${label}${required ? ' <span class="text-red-500">*</span>' : ''}</div>
+              ${description ? `<p class="text-xs text-slate-500 mb-3">${description}</p>` : ''}
+              <div class="text-xs text-slate-400">${type.replace('_', ' ').toUpperCase()}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function addField(type, payload) {
+        const template = document.getElementById('field_template');
+        const clone = template.content.firstElementChild.cloneNode(true);
+        const uid = payload?.uid || `field-${crypto.randomUUID?.() || Date.now()}`;
+        clone.dataset.uid = uid;
+
+        const labelInput = clone.querySelector('.question-label');
+        const typeSelect = clone.querySelector('.question-type');
+        const descInput = clone.querySelector('.field-description');
+        const requiredSelect = clone.querySelector('.field-required');
+        const extraContainer = clone.querySelector('.field-extra');
+
+        labelInput.value = payload?.label || '';
+        typeSelect.value = payload?.type || type || 'short_text';
+        descInput.value = payload?.description || '';
+        requiredSelect.value = payload?.required ? 'true' : 'false';
+
+        function renderConfig(fieldType, existing) {
+          if (!extraContainer) return;
+          extraContainer.innerHTML = '';
+          if (fieldType === 'single_choice' || fieldType === 'multi_choice') {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = `
+              <label class="block text-xs font-medium text-slate-500 mb-1">Choices (one per line)</label>
+              <textarea class="w-full px-3 py-2 border border-slate-200 rounded-lg field-choices" rows="4"></textarea>
+            `;
+            extraContainer.appendChild(wrapper);
+            if (existing?.choices?.length) {
+              wrapper.querySelector('textarea').value = existing.choices.join('\n');
+            }
+          } else if (fieldType === 'likert') {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = `
+              <label class="block text-xs font-medium text-slate-500 mb-1">Likert Labels (comma separated)</label>
+              <input type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg field-scale-labels" placeholder="Strongly Disagree, Disagree, Neutral, Agree, Strongly Agree">
+            `;
+            extraContainer.appendChild(wrapper);
+            if (existing?.scale?.labels?.length) {
+              wrapper.querySelector('input').value = existing.scale.labels.join(', ');
+            }
+          } else if (fieldType === 'file_upload') {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = `
+              <label class="block text-xs font-medium text-slate-500 mb-1">Allowed File Types (comma separated)</label>
+              <input type="text" class="w-full px-3 py-2 mb-2 border border-slate-200 rounded-lg field-file-types" placeholder="pdf, jpg, png">
+              <label class="block text-xs font-medium text-slate-500 mb-1">Max Size (MB)</label>
+              <input type="number" min="1" class="w-full px-3 py-2 border border-slate-200 rounded-lg field-file-size" placeholder="10">
+            `;
+            extraContainer.appendChild(wrapper);
+            if (existing?.file_types?.length) {
+              wrapper.querySelector('.field-file-types').value = existing.file_types.join(', ');
+            }
+            if (existing?.max_size_mb) {
+              wrapper.querySelector('.field-file-size').value = existing.max_size_mb;
+            }
+          } else if (fieldType === 'boolean') {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = `
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1">True Label</label>
+                  <input type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg field-true-label" placeholder="Yes">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1">False Label</label>
+                  <input type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg field-false-label" placeholder="No">
+                </div>
+              </div>
+            `;
+            extraContainer.appendChild(wrapper);
+            if (existing?.true_label) wrapper.querySelector('.field-true-label').value = existing.true_label;
+            if (existing?.false_label) wrapper.querySelector('.field-false-label').value = existing.false_label;
+          }
+        }
+
+        renderConfig(typeSelect.value, payload);
+
+        typeSelect.addEventListener('change', (event) => {
+          renderConfig(event.target.value);
+          updatePreview();
+        });
+
+        clone.querySelector('.remove-field').addEventListener('click', () => {
+          clone.remove();
+          toggleEmptyState();
+          updatePreview();
+        });
+
+        ['input', 'textarea', 'select'].forEach((selector) => {
+          clone.querySelectorAll(selector).forEach((el) => {
+            el.addEventListener('input', updatePreview);
+          });
+        });
+
+        fieldsContainer.appendChild(clone);
+        toggleEmptyState();
+        updatePreview();
+      }
+
+      paletteButtons.forEach(btn => {
+        btn.addEventListener('click', () => addField(btn.dataset.addField));
+      });
+
+      templateButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const template = formTemplates.find(t => t.id === btn.dataset.templateId);
+          if (!template) return;
+          template.fields.forEach((field, index) => {
+            addField(field.type, {
+              label: field.label,
+              description: field.description,
+              required: field.required,
+              type: field.type,
+              choices: field.choices || [],
+              scale: field.scale || null,
+              file_types: field.file_types || [],
+              max_size_mb: field.max_size_mb || 10,
+              true_label: field.true_label || 'Yes',
+              false_label: field.false_label || 'No',
+              uid: `${field.id}-${index}`,
+            });
+          });
+        });
+      });
+
+      new Sortable(fieldsContainer, {
+        handle: '.drag-handle',
+        animation: 150,
+        onEnd: updatePreview,
+      });
+
+      if (Array.isArray(initialFields) && initialFields.length) {
+        initialFields.forEach(field => addField(field.type, field));
+      }
+
+      document.getElementById('form_builder').addEventListener('submit', () => {
+        const payload = Array.from(fieldsContainer.querySelectorAll('.field-block')).map((block, idx) => {
+          const type = block.querySelector('.question-type').value;
+          const description = block.querySelector('.field-description').value;
+          const required = block.querySelector('.field-required').value === 'true';
+          const config = { description, required };
+
+          if (type === 'single_choice' || type === 'multi_choice') {
+            const choices = (block.querySelector('.field-choices')?.value || '')
+              .split('\n')
+              .map(choice => choice.trim())
+              .filter(Boolean);
+            config.choices = choices;
+          } else if (type === 'likert') {
+            const labels = (block.querySelector('.field-scale-labels')?.value || '')
+              .split(',')
+              .map(label => label.trim())
+              .filter(Boolean) || DEFAULT_LIKERT_SCALE.labels;
+            config.scale = { labels, values: Array.from({ length: labels.length }, (_, i) => i + 1) };
+          } else if (type === 'file_upload') {
+            const types = (block.querySelector('.field-file-types')?.value || '')
+              .split(',')
+              .map(type => type.trim().replace(/^\./, ''))
+              .filter(Boolean);
+            const size = parseInt(block.querySelector('.field-file-size')?.value, 10);
+            config.file_types = types;
+            config.max_size_mb = Number.isNaN(size) ? 10 : Math.max(1, size);
+          } else if (type === 'boolean') {
+            config.true_label = block.querySelector('.field-true-label')?.value || 'Yes';
+            config.false_label = block.querySelector('.field-false-label')?.value || 'No';
+          }
+
+          return {
+            label: block.querySelector('.question-label').value || `Question ${idx + 1}`,
+            type,
+            description,
+            required,
+            config,
+          };
+        });
+
+        fieldsPayloadInput.value = JSON.stringify(payload);
+      });
+    })();
+  </script>
+</body>
+</html>

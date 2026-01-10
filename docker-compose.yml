@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: saas-suite-db
+    environment:
+      POSTGRES_DB: saas_suite
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - suite-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.1
+    container_name: saas-suite-idp
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/saas_suite?currentSchema=idp
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HTTP_PORT: 8080
+      KC_FEATURES: token-exchange
+    command: start-dev --db-schema idp
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - suite-network
+
+  control-plane:
+    build: ./core/control-plane
+    container_name: saas-suite-control-plane
+    environment:
+      DATABASE_URL: postgresql://admin:password@db:5432/saas_suite
+      KEYCLOAK_URL: http://keycloak:8080
+      JWT_SECRET: super-secret-suite-key
+    volumes:
+      - ./shared:/app/shared
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - keycloak
+    networks:
+      - suite-network
+
+  portal:
+    build: ./core/portal
+    container_name: saas-suite-portal
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_KEYCLOAK_URL: http://localhost:8080
+      CONTROL_PLANE_URL: http://control-plane:8000
+      KEYCLOAK_URL: http://keycloak:8080
+    volumes:
+      - ./shared:/app/shared
+    ports:
+      - "3000:3000"
+    networks:
+      - suite-network
+
+  app-schedules:
+    build: ./apps/schedules-covers
+    container_name: saas-app-schedules
+    environment:
+      DATABASE_URL: postgresql://admin:password@db:5432/saas_suite
+      CONTROL_PLANE_URL: http://control-plane:8000
+    volumes:
+      - ./apps/schedules-covers:/app
+      - ./shared:/app/shared
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+      - control-plane
+    networks:
+      - suite-network
+
+  app-behavior:
+    build: ./apps/behavior
+    container_name: saas-app-behavior
+    environment:
+      DATABASE_URL: postgresql://admin:password@db:5432/saas_suite
+      CONTROL_PLANE_URL: http://control-plane:8000
+    volumes:
+      - ./apps/behavior:/app
+      - ./shared:/app/shared
+    ports:
+      - "4000:4000"
+    depends_on:
+      - db
+      - control-plane
+    networks:
+      - suite-network
+
+  app-absence:
+    build: ./apps/absence-tracker
+    container_name: saas-app-absence
+    environment:
+      DATABASE_URL: postgresql://admin:password@db:5432/saas_suite
+      CONTROL_PLANE_URL: http://control-plane:8000
+    volumes:
+      - ./apps/absence-tracker:/app
+      - ./shared:/app/shared
+    ports:
+      - "4001:4001"
+    depends_on:
+      - db
+      - control-plane
+    networks:
+      - suite-network
+
+networks:
+  suite-network:
+    driver: bridge

@@ -1,0 +1,7 @@
+flask
+requests
+python-jose[cryptography]
+python-multipart
+psycopg2-binary
+sqlalchemy
+flask-sqlalchemy

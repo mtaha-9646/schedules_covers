@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Incidents</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style> body { font-family: 'Inter', sans-serif; } .chart-container { position: relative; height: 260px; width: 100%; } </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <header class="flex flex-wrap items-center justify-between mb-6 gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Incidents for {{ student_name }} ({{ esis }})</h1>
+        <p class="text-sm text-gray-600">Class: {{ homeroom }}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('behaviour_bp.behaviour_dashboard') }}" class="px-4 py-2 bg-slate-600 text-white text-sm rounded-lg">Back</a>
+        <a href="{{ url_for('behaviour_bp.export_incidents', esis=esis) }}" class="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg">Export (CSV)</a>
+        <a href="{{ url_for('behaviour_bp.student_suspensions_page', esis=esis) }}" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg">View Suspensions</a>
+        <div class="relative">
+          <button id="add_form_btn" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg flex items-center gap-2">Add Form
+            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
+          </button>
+          <div id="add_form_menu" class="hidden absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-30">
+            <a href="{{ url_for('behaviour_bp.add_parent_meeting', esis=esis) }}" class="block px-4 py-2 text-sm hover:bg-gray-50">Parent Meeting</a>
+            <a href="{{ url_for('behaviour_bp.add_parent_ack', esis=esis) }}" class="block px-4 py-2 text-sm hover:bg-gray-50">Parent Acknowledgment</a>
+            <a href="{{ url_for('behaviour_bp.add_student_statement', esis=esis) }}" class="block px-4 py-2 text-sm hover:bg-gray-50">Student Statement</a>
+            <a href="{{ url_for('behaviour_bp.add_staff_statement', esis=esis) }}" class="block px-4 py-2 text-sm hover:bg-gray-50">Staff Statement</a>
+            <a href="{{ url_for('behaviour_bp.add_counseling_session', esis=esis) }}" class="block px-4 py-2 text-sm hover:bg-gray-50">Counselling Session</a>
+            <a href="{{ url_for('behaviour_bp.add_safeguarding', esis=esis) }}" class="block px-4 py-2 text-sm hover:bg-gray-50">Safeguarding Concern</a>
+            <a href="{{ url_for('behaviour_bp.add_phone_violation', esis=esis) }}" class="block px-4 py-2 text-sm hover:bg-gray-50">Phone Violation Contract</a>
+            <a href="{{ url_for('behaviour_bp.add_behavior_contract', esis=esis) }}" class="block px-4 py-2 text-sm hover:bg-gray-50">Student Behavior Contract</a>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div class="bg-white p-4 rounded-xl shadow mb-6">
+      <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+        <div>
+          <label class="text-sm text-gray-700">Start Date</label>
+          <input type="date" name="start_date" value="{{ request.args.get('start_date','') }}" class="mt-1 w-full px-3 py-2 border rounded" />
+        </div>
+        <div>
+          <label class="text-sm text-gray-700">End Date</label>
+          <input type="date" name="end_date" value="{{ request.args.get('end_date','') }}" class="mt-1 w-full px-3 py-2 border rounded" />
+        </div>
+        <div class="sm:col-span-2 flex gap-2">
+          <button class="px-4 py-2 bg-blue-600 text-white rounded">Apply</button>
+          <a href="{{ url_for('behaviour_bp.student_incidents_page', esis=esis) }}" class="px-4 py-2 bg-gray-200 text-gray-800 rounded">Clear</a>
+        </div>
+      </form>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div class="bg-white p-6 rounded-xl shadow lg:col-span-2">
+        <h2 class="text-lg font-semibold mb-3 text-gray-800">Incidents Over Time</h2>
+        <div class="chart-container"><canvas id="timeChart"></canvas></div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3 text-gray-800">Summary</h2>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-gray-50 p-4 rounded">
+            <p class="text-xs text-gray-500">Total</p>
+            <p class="text-xl font-bold">{{ summary.total }}</p>
+          </div>
+          <div class="bg-green-50 p-4 rounded">
+            <p class="text-xs text-gray-500">Minor</p>
+            <p class="text-xl font-bold">{{ summary.minor }}</p>
+          </div>
+          <div class="bg-red-50 p-4 rounded">
+            <p class="text-xs text-gray-500">Major</p>
+            <p class="text-xl font-bold">{{ summary.major }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% if session.get('is_admin') or session.get('role') == 'admin' %}
+    <div class="bg-white p-6 rounded-xl shadow mb-6">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-800">AI Action Plan</h2>
+          <p class="text-sm text-gray-600">Generate a personalised intervention outline from recent records.</p>
+        </div>
+        <button id="generate_action_plan_btn" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition">Generate Action Plan</button>
+      </div>
+      <div id="action_plan_output" class="mt-4 text-sm text-gray-700 whitespace-pre-wrap border border-dashed border-gray-300 rounded-lg p-4 hidden"></div>
+    </div>
+    {% endif %}
+    <div class="bg-white p-6 rounded-xl shadow">
+      <h2 class="text-lg font-semibold mb-3 text-gray-800">All Incidents</h2>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teacher</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for inc in incidents %}
+            <tr>
+              <td class="px-4 py-2 text-sm">{{ inc.date }}</td>
+              <td class="px-4 py-2 text-sm">{{ inc.grade }}</td>
+              <td class="px-4 py-2 text-sm">{{ inc.place }}</td>
+              <td class="px-4 py-2 text-sm">{{ inc.teacher }}</td>
+              <td class="px-4 py-2 text-sm max-w-xl truncate" title="{{ inc.desc }}">{{ inc.desc }}</td>
+              <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_incident_report', incident_id=inc.id) }}" target="_blank">Report</a></td>
+            </tr>
+            {% endfor %}
+            {% if incidents|length == 0 %}
+            <tr><td colspan="6" class="px-4 py-3 text-sm text-gray-500">No incidents found.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      const studentEsis = {{ esis|tojson }};
+      // Add Form dropdown
+      const btn = document.getElementById('add_form_btn');
+      const menu = document.getElementById('add_form_menu');
+      if (btn && menu) {
+        btn.addEventListener('click', () => menu.classList.toggle('hidden'));
+        document.addEventListener('click', (e) => {
+          if (!btn.contains(e.target) && !menu.contains(e.target)) menu.classList.add('hidden');
+        });
+      }
+      const ctx = document.getElementById('timeChart').getContext('2d');
+      const data = {{ time_chart | tojson }};
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [{ label: 'Incidents', data: data.counts, borderColor: '#3B82F6', tension: 0.1 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+      });
+      const planBtn = document.getElementById('generate_action_plan_btn');
+      const planOutput = document.getElementById('action_plan_output');
+      const escapeHtml = (value) => {
+        const escapeChars = {"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"};
+        return value.replace(/[&<>"']/g, (char) => escapeChars[char]);
+      };
+      const renderPlan = (text) => {
+        const trimmed = text.trim();
+        if (!trimmed) {
+          return '<p class="text-sm text-gray-500">No recommendations returned.</p>';
+        }
+        const sections = trimmed.split(/\n{2,}/);
+        return sections.map((section) => {
+          const safe = escapeHtml(section).replace(/\n/g, '<br>');
+          return `<p class="mb-3 leading-6">${safe}</p>`;
+        }).join('');
+      };
+      if (planBtn && planOutput) {
+        const defaultLabel = planBtn.textContent;
+        planBtn.addEventListener('click', async () => {
+          planBtn.disabled = true;
+          planBtn.textContent = 'Generating...';
+          planOutput.classList.remove('hidden');
+          planOutput.innerHTML = '<p class="text-sm text-gray-500">Building action plan...</p>';
+          try {
+            const response = await fetch(`/api/students/${encodeURIComponent(studentEsis)}/action-plan`, { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+              throw new Error(data.error || 'Failed to generate action plan.');
+            }
+            planOutput.innerHTML = renderPlan(data.plan || '');
+          } catch (error) {
+            const message = error && error.message ? error.message : 'Unexpected error while generating the plan.';
+            planOutput.innerHTML = `<p class="text-sm text-red-600">${escapeHtml(message)}</p>`;
+          } finally {
+            planBtn.disabled = false;
+            planBtn.textContent = defaultLabel;
+          }
+        });
+      }
+    });
+  </script>
+  {% if parent_meetings is defined or parent_acknowledgments is defined or student_statements is defined or staff_statements is defined %}
+  <div class="container mx-auto px-4 py-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3">Student Statements</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for s in student_statements %}
+              <tr>
+                <td class="px-4 py-2 text-sm">{{ s.date }}</td>
+                <td class="px-4 py-2 text-sm">{{ s.location }}</td>
+                <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_student_statement', st_id=s.id) }}" target="_blank">View</a></td>
+              </tr>
+              {% endfor %}
+              {% if student_statements|length == 0 %}
+              <tr><td colspan="3" class="px-4 py-3 text-sm text-gray-500">No student statements.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3">Staff Statements</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Staff</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for s in staff_statements %}
+              <tr>
+                <td class="px-4 py-2 text-sm">{{ s.date }}</td>
+                <td class="px-4 py-2 text-sm">{{ s.staff_name }} {{ s.position and '(' ~ s.position ~ ')' }}</td>
+                <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_staff_statement', sf_id=s.id) }}" target="_blank">View</a></td>
+              </tr>
+              {% endfor %}
+              {% if staff_statements|length == 0 %}
+              <tr><td colspan="3" class="px-4 py-3 text-sm text-gray-500">No staff statements.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3">Parent Meetings</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attended By</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for m in parent_meetings %}
+              <tr>
+                <td class="px-4 py-2 text-sm">{{ m.date }}</td>
+                <td class="px-4 py-2 text-sm">{{ m.parent_name }}</td>
+                <td class="px-4 py-2 text-sm">{{ m.attended_by }}</td>
+                <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_parent_meeting', meeting_id=m.id) }}" target="_blank">View</a></td>
+              </tr>
+              {% endfor %}
+              {% if parent_meetings|length == 0 %}
+              <tr><td colspan="4" class="px-4 py-3 text-sm text-gray-500">No parent meetings.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3">Parent Acknowledgments</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for a in parent_acknowledgments %}
+              <tr>
+                <td class="px-4 py-2 text-sm">{{ a.date }}</td>
+                <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_parent_ack', ack_id=a.id) }}" target="_blank">View</a></td>
+              </tr>
+              {% endfor %}
+              {% if parent_acknowledgments|length == 0 %}
+              <tr><td colspan="2" class="px-4 py-3 text-sm text-gray-500">No parent acknowledgment forms.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3">Safeguarding Concerns</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Report Date</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reported By</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for s in safeguarding_list or [] %}
+              <tr>
+                <td class="px-4 py-2 text-sm">{{ s.report_date }}</td>
+                <td class="px-4 py-2 text-sm">{{ s.reporting_name }} {{ s.reporting_role and '(' ~ s.reporting_role ~ ')' }}</td>
+                <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_safeguarding', sg_id=s.id) }}" target="_blank">View</a></td>
+              </tr>
+              {% endfor %}
+              {% if not safeguarding_list or (safeguarding_list|length == 0) %}
+              <tr><td colspan="3" class="px-4 py-3 text-sm text-gray-500">No safeguarding concerns.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3">Phone Violation Contracts</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for p in phone_violations or [] %}
+              <tr>
+                <td class="px-4 py-2 text-sm">{{ p.date }}</td>
+                <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_phone_violation', pv_id=p.id) }}" target="_blank">View</a></td>
+              </tr>
+              {% endfor %}
+              {% if not phone_violations or (phone_violations|length == 0) %}
+              <tr><td colspan="2" class="px-4 py-3 text-sm text-gray-500">No phone violations.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3">Counselling Sessions</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Counselor(s)</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for cs in counseling_sessions or [] %}
+              <tr>
+                <td class="px-4 py-2 text-sm">{{ cs.date }}</td>
+                <td class="px-4 py-2 text-sm">{{ cs.counselors or '-' }}</td>
+                <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_counseling_session', session_id=cs.id) }}" target="_blank">View</a></td>
+              </tr>
+              {% endfor %}
+              {% if not counseling_sessions or (counseling_sessions|length == 0) %}
+              <tr><td colspan="3" class="px-4 py-3 text-sm text-gray-500">No counseling sessions recorded.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-semibold mb-3">Behavior Contracts</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for bc in behavior_contracts or [] %}
+              <tr>
+                <td class="px-4 py-2 text-sm">{{ bc.date }}</td>
+                <td class="px-4 py-2 text-sm">{{ bc.grade }}</td>
+                <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('behaviour_bp.view_behavior_contract', bc_id=bc.id) }}" target="_blank">View</a></td>
+              </tr>
+              {% endfor %}
+              {% if not behavior_contracts or (behavior_contracts|length == 0) %}
+              <tr><td colspan="3" class="px-4 py-3 text-sm text-gray-500">No behavior contracts.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  <div class="container mx-auto px-4 py-4">
+    <div class="bg-white p-6 rounded-xl shadow">
+      <h2 class="text-lg font-semibold mb-3">Other Forms</h2>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Form Name</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Submitted</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for submission in dynamic_submissions %}
+            <tr>
+              <td class="px-4 py-2 text-sm">{{ submission.form.name }}</td>
+              <td class="px-4 py-2 text-sm">{{ submission.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td class="px-4 py-2 text-sm"><a class="text-blue-600 hover:underline" href="{{ url_for('forms_bp.view_dynamic_submission', submission_id=submission.id) }}" target="_blank">View</a></td>
+            </tr>
+            {% endfor %}
+            {% if not dynamic_submissions or (dynamic_submissions|length == 0) %}
+            <tr><td colspan="3" class="px-4 py-3 text-sm text-gray-500">No other forms submitted.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

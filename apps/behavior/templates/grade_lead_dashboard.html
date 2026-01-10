@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grade Lead Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <div class="max-w-6xl mx-auto px-4 py-10 space-y-6">
+    <header class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-900">Grade Lead Hub</h1>
+        <p class="text-sm text-slate-600 mt-1">
+          Planning for Grade <span class="font-semibold text-slate-900">{{ grade }}</span> |
+          Week of <span class="font-semibold text-slate-900">{{ week_start.strftime('%d %b %Y') }}</span> - <span class="font-semibold text-slate-900">{{ week_end.strftime('%d %b %Y') }}</span>
+        </p>
+        <p class="text-xs text-slate-500">Selected day: <span class="font-semibold text-slate-900">{{ focus_date.strftime('%A') }}</span></p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        {% if email_payload %}
+        <a href="{{ email_payload.mailto }}" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
+          Email Assigned Teachers
+        </a>
+        {% endif %}
+        <a href="{{ url_for('behaviour_bp.behaviour_dashboard') }}" class="px-4 py-2 bg-slate-600 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition">
+          Behaviour Dashboard
+        </a>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=True) %}
+      {% if messages %}
+        <div class="space-y-3">
+          {% for category, message in messages %}
+            {% set styles = {'success': 'bg-emerald-50 border-emerald-200 text-emerald-700',
+                             'error': 'bg-red-50 border-red-200 text-red-700',
+                             'warning': 'bg-amber-50 border-amber-200 text-amber-700'} %}
+            <div class="px-4 py-3 border rounded-lg {{ styles.get(category, 'bg-slate-50 border-slate-200 text-slate-700') }}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-2">
+      <div class="text-sm text-slate-700">
+        <div class="font-semibold text-slate-900">Assignments for {{ focus_date.strftime('%A') }}</div>
+        <p class="text-xs text-slate-500">Duty is scheduled by day, so the specific dates are omitted.</p>
+      </div>
+      {% if is_admin %}
+      <form method="get" class="flex flex-wrap items-end gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Grade</label>
+          <select name="grade" class="px-3 py-2 border border-slate-300 rounded-lg">
+            {% for g in grade_options %}
+            <option value="{{ g }}" {% if g == grade %}selected{% endif %}>G{{ g }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Load grade</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="space-y-6">
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-semibold text-slate-900">{{ break_card.title }}</h2>
+            <p class="text-xs uppercase tracking-wide text-slate-500">{{ break_card.subtitle }}</p>
+          </div>
+        </div>
+        <div class="p-6">
+          <div class="slot-card space-y-3" data-slot-key="{{ break_card.slot_key }}" data-slot-type="break" data-pod="{{ break_card.pod }}" data-period="" data-requires-location="{{ 'true' if break_card.requires_location else 'false' }}">
+            <div class="assignment-rows space-y-2"></div>
+            <button type="button" class="add-row px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition" data-target="{{ break_card.slot_key }}">Add Teacher</button>
+          </div>
+        </div>
+      </div>
+
+      {% for pod in pod_cards %}
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4">
+          <h2 class="text-xl font-semibold text-slate-900">{{ pod.pod }}</h2>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Assign teachers for each slot below.</p>
+        </div>
+        <div class="p-6 space-y-5">
+          {% for slot in pod.slots %}
+<div class="slot-card border border-slate-200 rounded-lg p-4 space-y-3"
+     data-slot-key="{{ slot.slot_key }}"
+     data-slot-type="{{ slot.slot_type }}"
+     data-pod="{{ slot.pod }}"
+     data-period="{{ slot.period if slot.period is not none else '' }}"
+     data-requires-location="false">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-900">{{ slot.label }}</h3>
+      <p class="text-xs uppercase tracking-wide text-slate-500">
+        Assign teachers for this slot below.
+      </p>
+    </div>
+  </div>
+
+  <!-- 🟢 FIXED: add this container for teacher rows -->
+  <div class="assignment-rows space-y-2"></div>
+
+  <!-- 🟢 FIXED: add this button to add teacher dropdowns -->
+  <button type="button"
+          class="add-row px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
+          data-target="{{ slot.slot_key }}">
+    Add Teacher
+  </button>
+</div>
+{% endfor %}
+
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+
+    <div class="flex justify-end">
+      <button id="save-assignments" class="px-5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition">
+        Save All Assignments
+      </button>
+    </div>
+  </div>
+
+  <script type="application/json" id="teacher-options-data">{{ teacher_options_json|safe }}</script>
+  <script type="application/json" id="location-options-data">{{ location_options_json|safe }}</script>
+  <script type="application/json" id="slots-data">{{ slots_json|safe }}</script>
+  <script type="application/json" id="availability-options-data">{{ availability_map_json|safe }}</script>
+
+  <script>
+    (function () {
+      const teacherDataEl = document.getElementById('teacher-options-data');
+      const locationDataEl = document.getElementById('location-options-data');
+      const slotsDataEl = document.getElementById('slots-data');
+      const availabilityDataEl = document.getElementById('availability-options-data');
+      const teacherOptions = teacherDataEl ? JSON.parse(teacherDataEl.textContent || '[]') : [];
+      const locationOptions = locationDataEl ? JSON.parse(locationDataEl.textContent || '[]') : [];
+      const slotsData = slotsDataEl ? JSON.parse(slotsDataEl.textContent || '[]') : [];
+      const slotMap = {};
+      slotsData.forEach(slot => slotMap[slot.slot_key] = slot);
+      const availabilityMap = availabilityDataEl ? JSON.parse(availabilityDataEl.textContent || '{}') : {};
+
+      // 🟢 FIXED TEACHER DROPDOWN
+      function buildTeacherSelect(slotKey, selectedId) {
+        const select = document.createElement('select');
+        select.className = 'teacher-select w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm';
+        
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select teacher';
+        select.appendChild(placeholder);
+
+        const displayLabel = item => (item.display_name || item.name || '').toLocaleLowerCase();
+        const availableIds = availabilityMap[slotKey] || [];
+        let candidates = teacherOptions;
+        if (availableIds.length) {
+          const idSet = new Set(availableIds.map(String));
+          const filtered = teacherOptions.filter(item => idSet.has(String(item.id)));
+          if (filtered.length) {
+            candidates = filtered;
+          }
+        }
+        const sortedTeachers = [...candidates].sort((a, b) => {
+          const aBusy = a.info !== 'Available';
+          const bBusy = b.info !== 'Available';
+          const labelA = displayLabel(a);
+          const labelB = displayLabel(b);
+          return aBusy - bBusy || labelA.localeCompare(labelB);
+        });
+
+        const availGroup = document.createElement('optgroup');
+        availGroup.label = 'Available';
+        const busyGroup = document.createElement('optgroup');
+        busyGroup.label = 'Busy / Assigned';
+
+        sortedTeachers.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          const label = t.display_name || t.name || '';
+          opt.textContent = label + (t.info !== 'Available' ? ` (${t.info})` : '');
+          if (t.info === 'Available') availGroup.appendChild(opt);
+          else busyGroup.appendChild(opt);
+        });
+
+        select.appendChild(availGroup);
+        select.appendChild(busyGroup);
+
+        if (selectedId) select.value = String(selectedId);
+        return select;
+      }
+
+      function buildLocationSelect(selectedKey) {
+        const select = document.createElement('select');
+        select.className = 'location-select w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select location';
+        select.appendChild(placeholder);
+        locationOptions.forEach(option => {
+          const opt = document.createElement('option');
+          opt.value = option.value;
+          opt.textContent = option.label;
+          select.appendChild(opt);
+        });
+        if (selectedKey) select.value = selectedKey;
+        return select;
+      }
+
+      function createAssignmentRow(slotKey, slotType, assignment, requiresLocation) {
+        const row = document.createElement('div');
+        row.className = 'assignment-row flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg';
+
+        const teacherWrapper = document.createElement('div');
+        teacherWrapper.className = 'min-w-[220px] flex-1';
+        teacherWrapper.appendChild(buildTeacherSelect(slotKey, assignment ? assignment.teacher_id : ''));
+        row.appendChild(teacherWrapper);
+
+        if (requiresLocation) {
+          const locationWrapper = document.createElement('div');
+          locationWrapper.className = 'min-w-[180px]';
+          locationWrapper.appendChild(buildLocationSelect(assignment ? assignment.location_key : ''));
+          row.appendChild(locationWrapper);
+        }
+
+        if (assignment && assignment.status_label) {
+          const meta = document.createElement('div');
+          meta.className = 'flex flex-wrap items-center gap-2 text-xs';
+          const badge = document.createElement('span');
+          badge.className = 'inline-flex items-center px-2.5 py-1 rounded-full font-semibold uppercase tracking-wide ' + (assignment.status_badge || 'bg-slate-200 text-slate-700');
+          badge.textContent = assignment.status_label;
+          meta.appendChild(badge);
+          if (assignment.location_label && !requiresLocation) {
+            const locationTag = document.createElement('span');
+            locationTag.className = 'text-slate-500';
+            locationTag.textContent = 'Location: ' + assignment.location_label;
+            meta.appendChild(locationTag);
+          }
+          if (assignment.note) {
+            const note = document.createElement('span');
+            note.className = 'text-slate-500';
+            note.textContent = 'Note: ' + assignment.note;
+            meta.appendChild(note);
+          }
+          row.appendChild(meta);
+        }
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'remove-row text-xs px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition';
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', () => row.remove());
+        row.appendChild(removeBtn);
+
+        return row;
+      }
+
+      // render all slot cards
+      document.querySelectorAll('.slot-card').forEach(card => {
+        const slotKey = card.dataset.slotKey;
+        const slotType = card.dataset.slotType;
+        const requiresLocation = card.dataset.requiresLocation === 'true';
+        const slotData = slotMap[slotKey] || { assignments: [] };
+        const rowsContainer = card.querySelector('.assignment-rows');
+
+        if (slotData.assignments?.length) {
+          slotData.assignments.forEach(a => rowsContainer.appendChild(createAssignmentRow(slotKey, slotType, a, requiresLocation)));
+        }
+        if (!rowsContainer.children.length) rowsContainer.appendChild(createAssignmentRow(slotKey, slotType, null, requiresLocation));
+      });
+
+      document.querySelectorAll('.add-row').forEach(button => {
+        button.addEventListener('click', () => {
+          const card = document.querySelector(`.slot-card[data-slot-key="${button.dataset.target}"]`);
+          if (!card) return;
+          const rowsContainer = card.querySelector('.assignment-rows');
+          const slotType = card.dataset.slotType;
+          const requiresLocation = card.dataset.requiresLocation === 'true';
+          rowsContainer.appendChild(createAssignmentRow(button.dataset.target, slotType, null, requiresLocation));
+        });
+      });
+
+      const saveButton = document.getElementById('save-assignments');
+      if (!saveButton) return;
+
+      saveButton.addEventListener('click', async () => {
+        const payload = {
+          grade: '{{ grade }}',
+          assignment_date: '{{ focus_date.isoformat() }}',
+          slots: []
+        };
+        const validationErrors = [];
+
+        document.querySelectorAll('.slot-card').forEach(card => {
+          const slotType = card.dataset.slotType;
+          const requiresLocation = card.dataset.requiresLocation === 'true';
+          const pod = card.dataset.pod;
+          const periodValue = card.dataset.period;
+          const period = periodValue ? parseInt(periodValue, 10) : null;
+          const assignments = [];
+          const seenTeachers = new Set();
+
+          card.querySelectorAll('.assignment-row').forEach(row => {
+            const teacherSelect = row.querySelector('.teacher-select');
+            const teacherId = teacherSelect?.value.trim() || '';
+            if (!teacherId) return;
+            if (seenTeachers.has(teacherId)) {
+              validationErrors.push(`Duplicate teacher selected for ${slotType === 'break' ? 'break duty' : pod + (period ? ' Period ' + period : '')}.`);
+              return;
+            }
+            seenTeachers.add(teacherId);
+            const entry = { teacher_id: parseInt(teacherId, 10) };
+            if (requiresLocation) {
+              const locationSelect = row.querySelector('.location-select');
+              const locationValue = locationSelect?.value.trim() || '';
+              if (!locationValue) {
+                validationErrors.push('Please choose a location for each break duty assignment.');
+                return;
+              }
+              entry['location'] = locationValue;
+            }
+            assignments.push(entry);
+          });
+
+          payload.slots.push({
+            slot_type: slotType,
+            pod,
+            period,
+            assignments,
+          });
+        });
+
+        if (validationErrors.length) {
+          alert(validationErrors.join('\n'));
+          return;
+        }
+
+        try {
+          saveButton.disabled = true;
+          saveButton.textContent = 'Saving...';
+          const response = await fetch('{{ url_for("grade_lead_bp.assign_bulk") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || 'Failed to save assignments.');
+          if (data.errors?.length) alert(data.errors.join('\n'));
+          window.location = '{{ url_for("grade_lead_bp.dashboard", grade=grade, date=focus_date.isoformat()) }}';
+        } catch (error) {
+          alert(error.message);
+        } finally {
+          saveButton.disabled = false;
+          saveButton.textContent = 'Save All Assignments';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

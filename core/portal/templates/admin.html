@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Suite | Platform Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 2rem;
+        }
+
+        th,
+        td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        th {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-active {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="dashboard-nav glass">
+        <div class="logo">SAAS SUITE <span
+                style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">ADMIN</span></div>
+        <div class="user-badge glass">
+            <a href="/" style="color: var(--text-muted); text-decoration: none; margin-right: 1rem;">Portal</a>
+            <span class="dot"></span>
+            <span>Platform Admin</span>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <div>
+                <h1>Platform Control Plane</h1>
+                <p style="color: var(--text-muted); margin-top: 0.5rem;">Manage global tenants and platform-wide
+                    configurations.</p>
+            </div>
+            <button class="btn-primary" style="width: auto; margin-top: 0; padding: 0.75rem 1.5rem;">+ Create
+                Tenant</button>
+        </header>
+
+        <section class="glass" style="margin-top: 3rem; padding: 1rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tenant Name</th>
+                        <th>Status</th>
+                        <th>Users</th>
+                        <th>Enabled Apps</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Default Academy</strong></td>
+                        <td><span class="badge badge-active">ACTIVE</span></td>
+                        <td>42</td>
+                        <td>Schedules, Behavior</td>
+                        <td><a href="#" style="color: var(--primary); font-weight: 600; font-size: 0.875rem;">Manage</a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+
+</html>

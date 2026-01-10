@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Add Counseling Session</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .custom-dropdown-list { max-height: 200px; overflow-y: auto; border: 1px solid #d1d5db; border-radius: 0.375rem; background-color: white; position: absolute; width: 100%; z-index: 10; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06); }
+    .custom-dropdown-list-item { padding: 0.5rem 0.75rem; cursor: pointer; }
+    .custom-dropdown-list-item:hover { background-color: #eff6ff; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <header class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Counselling Session Tracker</h1>
+        <p class="text-sm text-gray-600">Document individual or group counseling support for students.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('behaviour_bp.behaviour_dashboard') }}" class="px-4 py-2 bg-slate-600 text-white text-sm rounded">Dashboard</a>
+        {% if esis %}
+        <a href="{{ url_for('behaviour_bp.student_incidents_page', esis=esis) }}" class="px-4 py-2 bg-gray-300 text-gray-800 text-sm rounded">Back to Student</a>
+        {% endif %}
+      </div>
+    </header>
+
+    <form method="POST" class="bg-white p-6 rounded-xl shadow grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="md:col-span-2 border-b pb-4">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Student Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm text-gray-700">Search by ESIS</label>
+            <input type="text" id="esis_lookup" class="mt-1 w-full px-3 py-2 border rounded" placeholder="Enter ESIS" />
+          </div>
+          <div>
+            <label class="text-sm text-gray-700">Search by Name or ESIS</label>
+            <div class="relative">
+              <input type="text" id="name_search_input" class="mt-1 w-full px-3 py-2 border rounded" placeholder="Type at least 2 characters" />
+              <div id="name_search_results" class="hidden custom-dropdown-list"></div>
+            </div>
+          </div>
+          <div>
+            <label class="text-sm text-gray-700">Filter by Grade</label>
+            <select id="grade_select" class="mt-1 w-full px-3 py-2 border rounded">
+              <option value="">Select Grade</option>
+              {% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-gray-700">Filter by Homeroom</label>
+            <select id="homeroom_select" class="mt-1 w-full px-3 py-2 border rounded" disabled>
+              <option value="">Select Homeroom</option>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-sm text-gray-700">Select Student</label>
+            <select id="student_select" class="mt-1 w-full px-3 py-2 border rounded" disabled>
+              <option value="">Select Student</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-sm text-gray-700">Student Name</label>
+        <input type="text" id="student_name" name="student_name" value="{{ student.name if student else '' }}" class="mt-1 w-full px-3 py-2 border rounded" required />
+      </div>
+      <div>
+        <label class="text-sm text-gray-700">eSiS</label>
+        <div class="flex gap-2">
+          <input type="text" id="esis" name="esis" value="{{ esis }}" class="mt-1 w-full px-3 py-2 border rounded" required />
+          <button type="button" id="lookup_button" class="mt-1 px-3 py-2 bg-indigo-600 text-white rounded">Lookup</button>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-sm text-gray-700">Class &amp; Session</label>
+        <input type="text" id="grade_session" name="grade_session" value="{{ student.homeroom if student else '' }}" class="mt-1 w-full px-3 py-2 border rounded" />
+      </div>
+      <div>
+        <label class="text-sm text-gray-700">Counselor(s)</label>
+        <input type="text" name="counselors" value="{{ session.get('teacher_name') or '' }}" class="mt-1 w-full px-3 py-2 border rounded" placeholder="Enter counselor names" />
+      </div>
+
+      <div>
+        <label class="text-sm text-gray-700">Session Date</label>
+        <input type="date" name="session_date" value="{{ today }}" class="mt-1 w-full px-3 py-2 border rounded" required />
+      </div>
+      <div>
+        <label class="text-sm text-gray-700">Duration (minutes)</label>
+        <input type="number" min="0" name="duration_minutes" value="{{ default_duration }}" class="mt-1 w-full px-3 py-2 border rounded" />
+      </div>
+
+      <div class="md:col-span-2 border-t pt-4">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Individual Counseling Sessions Focus</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Academic Counseling &amp; Personal Development</h3>
+            <label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" name="focus_study_skills" value="1" class="mt-1"> Study skills development</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_time_management" value="1" class="mt-1"> Time management strategies</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_academic_goal_setting" value="1" class="mt-1"> Academic goal setting</label>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Social-Emotional &amp; Crisis Counseling</h3>
+            <label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" name="focus_self_esteem" value="1" class="mt-1"> Self-esteem building</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_decision_making" value="1" class="mt-1"> Decision-making skills</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_mindfulness_relaxation" value="1" class="mt-1"> Mindfulness and relaxation techniques</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_stress_management" value="1" class="mt-1"> Stress management techniques</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_coping_anxiety" value="1" class="mt-1"> Coping strategies for anxiety and depression</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_conflict_resolution" value="1" class="mt-1"> Conflict resolution skills</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_immediate_crisis_support" value="1" class="mt-1"> Immediate support for personal crises</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_grief_loss" value="1" class="mt-1"> Grief and loss counseling</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_support_trauma" value="1" class="mt-1"> Support for trauma or abuse</label>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Behavioral Counseling</h3>
+            <label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" name="focus_managing_anger" value="1" class="mt-1"> Managing anger and frustration</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_improving_communication" value="1" class="mt-1"> Improving communication skills</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="focus_positive_habits" value="1" class="mt-1"> Developing positive habits</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="md:col-span-2 border-t pt-4">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Group Counseling Sessions</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Social Skills &amp; Support Groups</h3>
+            <label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" name="group_building_friendships" value="1" class="mt-1"> Building friendships and social interactions</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_developing_empathy" value="1" class="mt-1"> Developing empathy and cooperation</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_grief_loss_support" value="1" class="mt-1"> Grief and loss support</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_anxiety_depression_support" value="1" class="mt-1"> Groups for students with anxiety or depression</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_learning_disabilities_support" value="1" class="mt-1"> Support for students with learning disabilities</label>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Stress Relief, Mindfulness &amp; Leadership</h3>
+            <label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" name="group_stress_management" value="1" class="mt-1"> Stress management techniques</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_leadership_training" value="1" class="mt-1"> Leadership skills training</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_team_building" value="1" class="mt-1"> Team-building activities</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_community_service" value="1" class="mt-1"> Community service projects</label>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Conflict Resolution Workshops</h3>
+            <label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" name="group_mediation_skills" value="1" class="mt-1"> Mediation skills training</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_role_play_conflict" value="1" class="mt-1"> Role-playing conflict scenarios</label>
+            <label class="flex items-start gap-2 text-sm text-gray-700 mt-1"><input type="checkbox" name="group_communication_strategies" value="1" class="mt-1"> Communication strategies for resolving disagreements</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="md:col-span-2 border-t pt-4">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Summary of Progress</h2>
+        <label class="text-sm text-gray-700">Individual/Group Dynamics and Observations</label>
+        <textarea name="summary_of_progress" rows="4" class="mt-1 w-full px-3 py-2 border rounded" placeholder="Describe observations about the session dynamics and student progress..."></textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="text-sm text-gray-700">Progress Toward Goals &amp; Next Steps</label>
+        <textarea name="progress_toward_goals" rows="4" class="mt-1 w-full px-3 py-2 border rounded"></textarea>
+      </div>
+
+      <div class="md:col-span-2 border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-700">Challenges Encountered</label>
+          <textarea name="follow_up_challenges" rows="3" class="mt-1 w-full px-3 py-2 border rounded"></textarea>
+        </div>
+        <div>
+          <label class="text-sm text-gray-700">Support Provided</label>
+          <textarea name="follow_up_support" rows="3" class="mt-1 w-full px-3 py-2 border rounded"></textarea>
+        </div>
+      </div>
+
+      <div class="md:col-span-2 border-t pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="text-sm text-gray-700">Future Sessions Planned</label>
+          <textarea name="future_sessions_planned" rows="3" class="mt-1 w-full px-3 py-2 border rounded"></textarea>
+        </div>
+        <div>
+          <label class="text-sm text-gray-700">Additional Support Needed</label>
+          <textarea name="additional_support_needed" rows="3" class="mt-1 w-full px-3 py-2 border rounded"></textarea>
+        </div>
+        <div>
+          <label class="text-sm text-gray-700">Parent/Guardian Communication</label>
+          <textarea name="parent_guardian_communication" rows="3" class="mt-1 w-full px-3 py-2 border rounded"></textarea>
+        </div>
+      </div>
+
+      <div class="md:col-span-2 border-t pt-4">
+        <label class="text-sm text-gray-700">Counselor's Observations / Reflection</label>
+        <textarea name="counselor_observations" rows="4" class="mt-1 w-full px-3 py-2 border rounded"></textarea>
+      </div>
+
+      <div class="md:col-span-2 flex justify-end gap-2 mt-4">
+        <a href="{{ url_for('behaviour_bp.student_incidents_page', esis=(student.esis if student else esis)) }}" class="px-4 py-2 bg-gray-200 text-gray-800 rounded">Cancel</a>
+        <button class="px-4 py-2 bg-blue-600 text-white rounded">Save Session</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    (function(){
+      const homerooms = {{ homerooms|tojson|safe }};
+      const gradeSelect = document.getElementById('grade_select');
+      const homeroomSelect = document.getElementById('homeroom_select');
+      const studentSelect = document.getElementById('student_select');
+      const esisLookup = document.getElementById('esis_lookup');
+      const nameSearchInput = document.getElementById('name_search_input');
+      const nameResults = document.getElementById('name_search_results');
+      const esisField = document.getElementById('esis');
+      const nameField = document.getElementById('student_name');
+      const classField = document.getElementById('grade_session');
+      const lookupBtn = document.getElementById('lookup_button');
+
+      const setStudent = (esis, name, homeroom)=>{
+        if (esisField) esisField.value = esis || '';
+        if (nameField) nameField.value = name || '';
+        if (classField) classField.value = homeroom || '';
+      };
+
+      const fetchByEsis = async (value)=>{
+        if (!value) return;
+        try {
+          const r = await fetch(`/api/student/by-esis?esis=${encodeURIComponent(value)}`);
+          if (!r.ok) return;
+          const s = await r.json();
+          setStudent(s.esis, s.name, s.homeroom || '');
+        } catch (e) {}
+      };
+
+      esisLookup?.addEventListener('blur', ()=> fetchByEsis(esisLookup.value.trim()));
+      lookupBtn?.addEventListener('click', ()=> fetchByEsis(esisField.value.trim()));
+
+      gradeSelect?.addEventListener('change', ()=>{
+        const g = gradeSelect.value;
+        homeroomSelect.innerHTML = '<option value="">Select Homeroom</option>';
+        if (!g){ homeroomSelect.disabled = true; studentSelect.disabled = true; studentSelect.innerHTML = '<option value="">Select Student</option>'; return; }
+        const list = homerooms.filter(h=>h && h.startsWith('G'+g));
+        for (const hr of list){ const opt=document.createElement('option'); opt.value=hr; opt.textContent=hr; homeroomSelect.appendChild(opt); }
+        homeroomSelect.disabled = false;
+        studentSelect.innerHTML = '<option value="">Select Student</option>';
+        studentSelect.disabled = true;
+      });
+
+      homeroomSelect?.addEventListener('change', async ()=>{
+        const hr = homeroomSelect.value;
+        if (!hr){ studentSelect.disabled = true; studentSelect.innerHTML = '<option value="">Select Student</option>'; return; }
+        studentSelect.innerHTML = '<option value="">Loading...</option>';
+        try {
+          const r = await fetch(`/api/students/by-homeroom?homeroom=${encodeURIComponent(hr)}`);
+          const list = await r.json();
+          studentSelect.innerHTML = '<option value="">Select Student</option>' + list.map(s=>`<option value="${s.esis}">${s.name}</option>`).join('');
+          studentSelect.disabled = false;
+        } catch (e) {
+          studentSelect.innerHTML = '<option value="">Select Student</option>';
+          studentSelect.disabled = true;
+        }
+      });
+
+      studentSelect?.addEventListener('change', ()=>{
+        const esis = studentSelect.value;
+        if (!esis) return;
+        const name = studentSelect.options[studentSelect.selectedIndex].text;
+        const hr = homeroomSelect.value;
+        setStudent(esis, name, hr);
+      });
+
+      let timeout;
+      nameSearchInput?.addEventListener('input', ()=>{
+        const q = nameSearchInput.value.trim();
+        clearTimeout(timeout);
+        if (q.length < 2){ nameResults.classList.add('hidden'); nameResults.innerHTML=''; return; }
+        timeout = setTimeout(async ()=>{
+          try {
+            const r = await fetch(`/api/students/search?q=${encodeURIComponent(q)}`);
+            const list = await r.json();
+            nameResults.innerHTML = list.map(s=>`<div class='custom-dropdown-list-item' data-esis='${s.esis}' data-name='${s.name}' data-homeroom='${s.homeroom||''}'>${s.name} (${s.esis}) ${s.homeroom ? '- '+s.homeroom : ''}</div>`).join('');
+            nameResults.classList.remove('hidden');
+          } catch (e) {
+            nameResults.classList.add('hidden');
+          }
+        }, 250);
+      });
+
+      nameResults?.addEventListener('click', (e)=>{
+        const el = e.target.closest('.custom-dropdown-list-item');
+        if (!el) return;
+        const esis = el.getAttribute('data-esis');
+        const name = el.getAttribute('data-name');
+        const homeroom = el.getAttribute('data-homeroom') || '';
+        setStudent(esis, name, homeroom);
+        nameResults.classList.add('hidden');
+        nameResults.innerHTML = '';
+        nameSearchInput.value = '';
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Absence Excuse</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        textarea { min-height: 140px; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        <header class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <p class="text-sm text-gray-500">Behaviour - Absence Block</p>
+                <h1 class="text-3xl font-bold text-gray-900">Submit Absence Excuse</h1>
+                <p class="text-sm text-gray-500">Let leadership know why you will be out so coverage can be arranged quickly.</p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <a href="{{ url_for('leave_bp.list_requests') }}" class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50">View History</a>
+                <a href="{{ url_for('behaviour_bp.behaviour_dashboard') }}" class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50">Dashboard</a>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=True) %}
+            {% if messages %}
+                <div class="space-y-3">
+                    {% for category, message in messages %}
+                        {% if category in ['success', 'ok'] %}
+                            <div class="px-4 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg">{{ message }}</div>
+                        {% elif category in ['warning'] %}
+                            <div class="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg">{{ message }}</div>
+                        {% elif category in ['error', 'danger'] %}
+                            <div class="px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">{{ message }}</div>
+                        {% else %}
+                            <div class="px-4 py-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg">{{ message }}</div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('leave_bp.new_request') }}" method="POST" enctype="multipart/form-data" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6" id="absence_form">
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="leave_date" class="block text-sm font-semibold text-gray-700">Start Date</label>
+                        <input id="leave_date" type="date" name="leave_date" required class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-2.5 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        <p class="text-xs text-gray-500 mt-1">When the absence begins.</p>
+                    </div>
+                    <div id="sick_end_wrapper" class="hidden">
+                        <label for="leave_end_date" class="block text-sm font-semibold text-gray-700">End Date (optional)</label>
+                        <input id="leave_end_date" type="date" name="leave_end_date" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-2.5 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        <p class="text-xs text-gray-500 mt-1">Use a range if this sick leave spans multiple days.</p>
+                    </div>
+                </div>
+                <p class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Sick leave requests for today are blocked between 5:30 AM and 8:00 AM UAE time.
+                </p>
+                <div id="time_range_wrapper" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+                    <div>
+                        <label for="session_start" class="block text-sm font-semibold text-gray-700">Session Start Time</label>
+                        <input id="session_start" type="time" name="session_start" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-2.5 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                    </div>
+                    <div>
+                        <label for="session_end" class="block text-sm font-semibold text-gray-700">Session End Time</label>
+                        <input id="session_end" type="time" name="session_end" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-2.5 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                    </div>
+                    <p class="text-xs text-gray-500 md:col-span-2">Conference and training requests must include the times you will be off campus.</p>
+                </div>
+                <div id="early_time_wrapper" class="hidden">
+                    <label for="early_leave_time" class="block text-sm font-semibold text-gray-700">Early Leave Time</label>
+                    <input id="early_leave_time" type="time" name="early_leave_time" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-2.5 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                    <p class="text-xs text-gray-500 mt-1">Specify the time you plan to leave campus.</p>
+                </div>
+            </div>
+
+            <div>
+                <label for="leave_type" class="block text-sm font-semibold text-gray-700">Leave Type</label>
+                <select id="leave_type" name="leave_type" class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-2.5 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    {% for leave_type in valid_leave_types %}
+                        <option value="{{ leave_type }}">{{ type_labels.get(leave_type, leave_type.replace('_', ' ').title()) }}</option>
+                    {% endfor %}
+                </select>
+                <p id="leave_type_hint" class="text-xs text-gray-500 mt-1">Select the option that best describes your absence.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700">Reason / Notes</label>
+                <textarea name="reason" placeholder="Provide context so leadership can process your request quickly." required class="mt-1 w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+            </div>
+            <div id="sick_attachment_wrapper" class="hidden">
+                <label for="sick_attachment" class="block text-sm font-semibold text-gray-700">Sick Leave Document</label>
+                <input id="sick_attachment" type="file" name="sick_attachment" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" class="mt-1 block w-full text-sm text-slate-600 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                <p class="text-xs text-gray-500 mt-1">Optional now, but required within 5 days. You can upload it later from your history page.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="text-xs text-gray-500">
+                    Early leave requests must be scheduled for upcoming days only.
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="{{ url_for('leave_bp.list_requests') }}" class="text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+                    <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl shadow hover:bg-indigo-700 transition">
+                        Submit Excuse
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const leaveTypeSelect = document.getElementById('leave_type');
+            const startInput = document.getElementById('leave_date');
+            const endInput = document.getElementById('leave_end_date');
+            const sickWrapper = document.getElementById('sick_end_wrapper');
+            const timeWrapper = document.getElementById('time_range_wrapper');
+            const earlyWrapper = document.getElementById('early_time_wrapper');
+            const sessionStartInput = document.getElementById('session_start');
+            const sessionEndInput = document.getElementById('session_end');
+            const earlyTimeInput = document.getElementById('early_leave_time');
+            const sickAttachmentWrapper = document.getElementById('sick_attachment_wrapper');
+            const hint = document.getElementById('leave_type_hint');
+            const timedLeaveTypes = {{ timed_leave_types|tojson|safe }};
+            const timedTypeSet = new Set(timedLeaveTypes || []);
+            const typeHints = {
+                sickleave: 'Use for medical absences. You can enter a start and end date.',
+                conference_offsite: 'Heading to a conference? Tell us when you will be off campus.',
+                training_offsite: 'Provide the training times so we know when you are off-site.',
+                early_leave_request: 'Request permission to leave school early on a future day.',
+            };
+
+            const updateLeaveFields = () => {
+                const selectedType = leaveTypeSelect.value;
+                const isSick = selectedType === 'sickleave';
+                const isEarly = selectedType === 'early_leave_request';
+                sickWrapper.classList.toggle('hidden', !isSick);
+                if (sickAttachmentWrapper) {
+                    sickAttachmentWrapper.classList.toggle('hidden', !isSick);
+                }
+                if (!isSick && endInput) {
+                    endInput.value = '';
+                }
+                const needsTime = timedTypeSet.has(selectedType);
+                timeWrapper.classList.toggle('hidden', !needsTime);
+                if (sessionStartInput && sessionEndInput) {
+                    sessionStartInput.required = needsTime;
+                    sessionEndInput.required = needsTime;
+                    if (!needsTime) {
+                        sessionStartInput.value = '';
+                        sessionEndInput.value = '';
+                    }
+                }
+                if (earlyWrapper && earlyTimeInput) {
+                    earlyWrapper.classList.toggle('hidden', !isEarly);
+                    earlyTimeInput.required = isEarly;
+                    if (!isEarly) {
+                        earlyTimeInput.value = '';
+                    }
+                }
+                if (hint) {
+                    hint.textContent = typeHints[selectedType] || 'Select the option that best describes your absence.';
+                }
+            };
+
+            const syncEndDateMin = (todayIso = '') => {
+                if (!endInput) return;
+                const minDate = startInput.value || todayIso || '';
+                endInput.min = minDate;
+                if (endInput.value && minDate && endInput.value < minDate) {
+                    endInput.value = minDate;
+                }
+            };
+
+            const enforceStartMin = () => {
+                if (!startInput) return;
+                const todayIso = new Date().toISOString().split('T')[0];
+                startInput.min = todayIso;
+                if (startInput.value && startInput.value < todayIso) {
+                    startInput.value = todayIso;
+                }
+                syncEndDateMin(todayIso);
+            };
+
+            if (leaveTypeSelect) {
+                leaveTypeSelect.addEventListener('change', updateLeaveFields);
+                updateLeaveFields();
+            }
+            if (startInput) {
+                startInput.addEventListener('change', enforceStartMin);
+                enforceStartMin();
+            }
+        });
+    </script>
+</body>
+</html>

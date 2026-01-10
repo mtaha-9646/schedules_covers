@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    html { scroll-behavior: smooth; }
+    .section-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      color: #475569;
+      background-color: #f1f5f9;
+      transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+    }
+    .section-link:hover {
+      background-color: #e2e8f0;
+    }
+    .section-link[data-active="true"] {
+      background-color: #0f172a;
+      color: #fff;
+      box-shadow: 0 10px 25px -10px rgba(15, 23, 42, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="container mx-auto px-4 py-8" id="dashboard-top">
+    <header class="flex flex-wrap items-center justify-between mb-8 gap-4">
+      <h1 class="text-3xl font-bold text-gray-800">Super Admin Panel</h1>
+      <div class="flex items-center gap-3">
+        <a href="{{ url_for('behaviour_bp.behaviour_dashboard') }}" class="px-4 py-2 bg-slate-600 text-white rounded-lg">Behaviour Dashboard</a>
+        <a href="{{ url_for('leave_bp.manage_requests') }}" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Excuse Requests</a>
+        <a href="{{ url_for('admin_bp.logout') }}" class="px-4 py-2 bg-red-600 text-white rounded-lg">Logout</a>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=True) %}
+      {% if messages %}
+      <div class="space-y-3 mb-6">
+        {% for category, message in messages %}
+          {% if category in ['success', 'ok'] %}
+            <div class="px-4 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg">{{ message }}</div>
+          {% elif category in ['warning'] %}
+            <div class="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg">{{ message }}</div>
+          {% elif category in ['error', 'danger'] %}
+            <div class="px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">{{ message }}</div>
+          {% else %}
+            <div class="px-4 py-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg">{{ message }}</div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+
+    <datalist id="grade-options">
+      {% for grade in grade_options or [] %}
+      <option value="{{ grade }}"></option>
+      {% endfor %}
+    </datalist>
+
+    <nav class="bg-white rounded-2xl shadow mb-10 px-4 py-3">
+      <div class="flex flex-wrap gap-2">
+        <a href="#user-management" class="section-link" data-section-link>User Management</a>
+        <a href="#notifications" class="section-link" data-section-link>Notifications</a>
+        <a href="#automation" class="section-link" data-section-link>Automation Setup</a>
+        <a href="#insights" class="section-link" data-section-link>Insights &amp; Oversight</a>
+      </div>
+    </nav>
+
+    <div class="space-y-16">
+      <section id="user-management" class="space-y-6">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p class="text-sm uppercase tracking-wide text-slate-500">User Management</p>
+            <h2 class="text-2xl font-semibold text-gray-900">Teachers &amp; Students</h2>
+            <p class="text-sm text-gray-600">Upload rosters, adjust roles, and correct student records from one place.</p>
+          </div>
+          <a href="#dashboard-top" class="text-sm text-slate-500 hover:text-slate-800">Back to top</a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          <div class="bg-white p-6 rounded-xl shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Upload Teachers CSV</h3>
+            <form action="{{ url_for('admin_bp.upload_teachers') }}" method="POST" enctype="multipart/form-data" class="space-y-3">
+              <input type="file" name="file" accept=".csv" class="block w-full text-sm" required />
+              <button class="px-4 py-2 bg-blue-600 text-white rounded-lg">Upload</button>
+            </form>
+            <p class="mt-2 text-xs text-gray-500">CSV columns: name,email,password,subject(optional),grade(optional)</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Upload Students CSV</h3>
+            <form action="{{ url_for('admin_bp.upload_students') }}" method="POST" enctype="multipart/form-data" class="space-y-3">
+              <input type="file" name="file" accept=".csv" class="block w-full text-sm" required />
+              <button class="px-4 py-2 bg-blue-600 text-white rounded-lg">Upload</button>
+            </form>
+            <p class="mt-2 text-xs text-gray-500">CSV columns: esis,name,homeroom</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Add / Update Student</h3>
+            <p class="text-sm text-gray-600 mb-4">Use this form to add a new student or update an existing one by ESIS ID.</p>
+            <form id="student-upsert-form" action="{{ url_for('admin_bp.upsert_student_single') }}" method="POST" class="space-y-3">
+              <div>
+                <label class="text-sm text-gray-700">ESIS ID</label>
+                <div class="mt-1 flex gap-2">
+                  <input id="student-esis" name="esis" class="flex-1 px-3 py-2 rounded-lg border border-gray-300" required />
+                  <button type="button" id="student-lookup" class="px-3 py-2 bg-slate-600 text-white rounded-lg shrink-0">Lookup</button>
+                </div>
+              </div>
+              <div>
+                <label class="text-sm text-gray-700">Student Name</label>
+                <input id="student-name" name="name" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" required />
+              </div>
+              <div>
+                <label class="text-sm text-gray-700">Homeroom</label>
+                <input id="student-homeroom" name="homeroom" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Optional" />
+              </div>
+              <button class="px-4 py-2 bg-blue-600 text-white rounded-lg w-full">Save Student</button>
+            </form>
+            <p class="mt-2 text-xs text-gray-500">Lookup fills the form with the latest data if the ESIS ID already exists.</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-lg font-semibold text-gray-800">Add Teacher</h3>
+              <form method="POST" action="{{ url_for('admin_bp.init_roles_table') }}">
+                <button class="px-3 py-1 text-xs bg-slate-600 text-white rounded" title="Initialize roles table if missing">Init Roles Table</button>
+              </form>
+            </div>
+            <form action="{{ url_for('admin_bp.add_teacher') }}" method="POST" class="space-y-3">
+              <div>
+                <label class="text-sm text-gray-700">Name</label>
+                <input name="name" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" required />
+              </div>
+              <div>
+                <label class="text-sm text-gray-700">Email</label>
+                <input name="email" type="email" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" required />
+              </div>
+              <div>
+                <label class="text-sm text-gray-700">Subject</label>
+                <input name="subject" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="e.g. Math" />
+              </div>
+              <div>
+                <label class="text-sm text-gray-700">Grade</label>
+                <input name="grade" list="grade-options" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="e.g. 7" />
+              </div>
+              <div>
+                <label class="text-sm text-gray-700">Password</label>
+                <input name="password" type="password" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" required />
+              </div>
+              <div>
+                <label class="text-sm text-gray-700">Role</label>
+                <select name="role" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300">
+                  {% for value in allowed_roles %}
+                  <option value="{{ value }}">{{ role_labels.get(value, value.replace('_', ' ').title()) }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg w-full">Save Teacher</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Manage Teachers</h3>
+          <div class="overflow-x-auto">
+            <table id="teachers_table" class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th data-sort-index="0" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">Name</th>
+                  <th data-sort-index="1" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">Email</th>
+                  <th data-sort-index="2" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">Grade</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                  <th data-sort-index="4" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">Role</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">New Password</th>
+                  <th class="px-4 py-3"></th>
+                  <th class="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                {% for t in teachers %}
+                <tr>
+                  <form method="POST" action="{{ url_for('admin_bp.update_teacher', teacher_id=t.id) }}">
+                    <td class="px-4 py-2"><input name="name" value="{{ t.name }}" class="w-full px-2 py-1 border rounded" /></td>
+                    <td class="px-4 py-2"><input name="email" value="{{ t.email }}" class="w-full px-2 py-1 border rounded" /></td>
+                    <td class="px-4 py-2"><input name="grade" value="{{ t.grade or '' }}" list="grade-options" class="w-full px-2 py-1 border rounded" placeholder="Grade" /></td>
+                    <td class="px-4 py-2"><input name="subject" value="{{ t.subject or '' }}" class="w-full px-2 py-1 border rounded" placeholder="Subject" /></td>
+                    <td class="px-4 py-2">
+                      {% set r = (roles_map.get(t.id) if roles_map else 'teacher') or 'teacher' %}
+                      <select name="role" class="px-2 py-1 border rounded">
+                        {% for value in allowed_roles %}
+                        <option value="{{ value }}" {% if r == value %}selected{% endif %}>
+                          {{ role_labels.get(value, value.replace('_', ' ').title()) }}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td class="px-4 py-2"><input name="password" type="password" placeholder="Leave blank to keep" class="w-full px-2 py-1 border rounded" /></td>
+                    <td class="px-4 py-2 text-right">
+                      <button class="px-3 py-1 bg-indigo-600 text-white rounded">Save</button>
+                    </td>
+                  </form>
+                  <td class="px-4 py-2 text-right">
+                    <form method="POST" action="{{ url_for('admin_bp.delete_teacher', teacher_id=t.id) }}" onsubmit="return confirm('Delete this teacher? This cannot be undone.');">
+                      <button class="px-3 py-1 bg-red-600 text-white rounded">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section id="notifications" class="space-y-6">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p class="text-sm uppercase tracking-wide text-slate-500">Notifications</p>
+            <h2 class="text-2xl font-semibold text-gray-900">Automated Updates</h2>
+            <p class="text-sm text-gray-600">Control who receives instant alerts for incidents, excuses, and approvals.</p>
+          </div>
+          <a href="#dashboard-top" class="text-sm text-slate-500 hover:text-slate-800">Back to top</a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-xl shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Incident Notifications</h3>
+            <p class="text-sm text-gray-600 mb-4">Automatically email a designated inbox whenever a behaviour incident is submitted.</p>
+            <form action="{{ url_for('admin_bp.update_incident_notification_email') }}" method="POST" class="space-y-3">
+              <div>
+                <label class="text-sm text-gray-700">Recipient Email</label>
+                <input name="recipient_email" type="email" placeholder="alerts@example.com" value="{{ incident_notification_setting.recipient_email if incident_notification_setting else '' }}" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+              </div>
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" name="enabled" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" {% if incident_notification_setting and incident_notification_setting.enabled %}checked{% endif %} />
+                Enable automatic incident emails
+              </label>
+              <button class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition">Save Notification Settings</button>
+            </form>
+            {% if incident_notification_setting and incident_notification_setting.enabled and incident_notification_setting.recipient_email %}
+            <p class="mt-3 text-xs text-emerald-600">Currently emailing {{ incident_notification_setting.recipient_email }}.</p>
+            {% else %}
+            <p class="mt-3 text-xs text-amber-600">Incident notifications are currently disabled.</p>
+            {% endif %}
+            <p class="mt-2 text-xs text-gray-500">C1/C2 incidents use a yellow alert template; C3/C4 incidents use a red warning template with a direct link to the report.</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Teacher Excuse Emails</h3>
+            <p class="text-sm text-gray-600 mb-4">Blast leadership with a formatted email the moment a teacher logs a sick leave or absence excuse.</p>
+            <form action="{{ url_for('admin_bp.update_excuse_notification_email') }}" method="POST" class="space-y-3">
+              <div>
+                <label class="text-sm text-gray-700">Recipient Emails</label>
+                <textarea name="recipient_emails" rows="3" placeholder="principal@example.com&#10;ap@example.com" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">{{ excuse_notification_setting.recipient_emails if excuse_notification_setting else '' }}</textarea>
+                <p class="mt-1 text-xs text-gray-500">Separate multiple emails with commas or new lines.</p>
+              </div>
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" name="enabled" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" {% if excuse_notification_setting and excuse_notification_setting.enabled %}checked{% endif %} />
+                Enable instant excuse notifications
+              </label>
+              <button class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition">Save Excuse Email Settings</button>
+            </form>
+            {% if excuse_notification_setting and excuse_notification_setting.enabled and excuse_notification_setting.recipient_emails %}
+            <p class="mt-3 text-xs text-emerald-600">Currently emailing {{ excuse_notification_setting.recipient_emails }}.</p>
+            {% else %}
+            <p class="mt-3 text-xs text-amber-600">Excuse notifications are currently disabled.</p>
+            {% endif %}
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Grade Notification Emails</h3>
+            <p class="text-sm text-gray-600 mb-4">Set grade lead distribution lists for automated alerts.</p>
+            <div class="flex flex-wrap items-center gap-3">
+              <a href="{{ url_for('behaviour_bp.manage_grade_notifications') }}" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition">Configure Alerts</a>
+              <form method="POST" action="{{ url_for('behaviour_bp.send_grade_notification_reminders') }}">
+                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition">Send Reminders</button>
+              </form>
+            </div>
+            <p class="text-xs text-gray-500 mt-3">Manual run sends emails for students at the incident threshold.</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow" id="sick-grade-emails">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-800">Approved Sick Leave Emails</h3>
+              <p class="text-sm text-gray-600">Send a confirmation email when any sick leave is approved. Configure specific grades or use ALL for everyone.</p>
+            </div>
+            <span class="text-sm text-gray-500">{{ sick_leave_grade_settings|length }} grade lists</span>
+          </div>
+          <form action="{{ url_for('admin_bp.update_sick_leave_grade_recipients') }}" method="POST" class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div>
+              <label class="text-sm text-gray-700">Grade</label>
+              <input name="grade" list="grade-options" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="e.g. 6 or ALL" required />
+            </div>
+            <div class="lg:col-span-2">
+              <label class="text-sm text-gray-700">Recipient Emails</label>
+              <textarea name="recipient_emails" rows="3" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Separate multiple emails with commas or new lines"></textarea>
+            </div>
+            <div class="lg:col-span-3 flex flex-wrap items-center gap-3">
+              <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition">Save Grade Emails</button>
+              <p class="text-xs text-gray-500">Leave the recipients blank to clear the list for that grade.</p>
+            </div>
+          </form>
+          <div class="mt-4 border border-gray-100 rounded-2xl overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-100 text-sm">
+              <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th class="px-4 py-3">Grade</th>
+                  <th class="px-4 py-3">Emails</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-50 text-gray-700">
+                {% if sick_leave_grade_settings %}
+                  {% for setting in sick_leave_grade_settings %}
+                    <tr>
+                      <td class="px-4 py-3 font-semibold">
+                        {% if setting.grade == 'ALL' %}
+                          All Teachers
+                        {% else %}
+                          Grade {{ setting.grade }}
+                        {% endif %}
+                      </td>
+                      <td class="px-4 py-3">{{ setting.recipient_emails or '--' }}</td>
+                    </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr>
+                    <td colspan="2" class="px-4 py-5 text-center text-gray-500">No grade email lists configured yet.</td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section id="automation" class="space-y-6">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p class="text-sm uppercase tracking-wide text-slate-500">Automation Setup</p>
+            <h2 class="text-2xl font-semibold text-gray-900">Integrations &amp; Workflows</h2>
+            <p class="text-sm text-gray-600">Keep Microsoft services connected and ensure archives sync automatically.</p>
+          </div>
+          <a href="#dashboard-top" class="text-sm text-slate-500 hover:text-slate-800">Back to top</a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-xl shadow" id="onedrive-export">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">OneDrive Sick Leave Archive</h3>
+            <p class="text-sm text-gray-600 mb-4">Every sick-leave submission is uploaded to OneDrive and a link is emailed to your leadership list.</p>
+            <form action="{{ url_for('admin_bp.update_onedrive_export_settings') }}" method="POST" class="space-y-3">
+              <div>
+                <label class="text-sm text-gray-700">Recipient Emails</label>
+                <textarea name="recipient_emails" rows="3" placeholder="leadership@example.com&#10;hr@example.com" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">{{ onedrive_export_setting.recipient_emails if onedrive_export_setting else '' }}</textarea>
+                <p class="mt-1 text-xs text-gray-500">Separate emails with commas or new lines. We'll include the folder link.</p>
+              </div>
+              <div>
+                <label class="text-sm text-gray-700">Microsoft profile (optional)</label>
+                <input name="ms_profile" type="text" value="{{ onedrive_export_setting.ms_profile if onedrive_export_setting and onedrive_export_setting.ms_profile else 'absence' }}" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-sky-500" />
+                <p class="mt-1 text-xs text-gray-500">Defaults to the absence profile so a single Microsoft sign-in powers emails and OneDrive uploads.</p>
+              </div>
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" name="enabled" class="h-4 w-4 text-sky-600 border-gray-300 rounded" {% if onedrive_export_setting and onedrive_export_setting.enabled %}checked{% endif %} />
+                Email leadership when a sick leave is archived
+              </label>
+              <button class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition">Save OneDrive Settings</button>
+            </form>
+            {% if onedrive_export_setting and onedrive_export_setting.enabled and onedrive_export_setting.recipient_emails %}
+            <p class="mt-3 text-xs text-emerald-600">Currently emailing {{ onedrive_export_setting.recipient_emails }}.</p>
+            {% else %}
+            <p class="mt-3 text-xs text-amber-600">OneDrive archive emails are currently disabled.</p>
+            {% endif %}
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Manage Forms</h3>
+            <p class="text-sm text-gray-600 mb-4">Build or edit dynamic forms used across Behaviour blocks.</p>
+            <a href="{{ url_for('forms_bp.manage_forms') }}" class="px-4 py-2 bg-green-600 text-white rounded-lg">Manage Dynamic Forms</a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6">
+          {% for slug, ctx in ms_email_integrations.items() %}
+          {% set status = ctx.status or {} %}
+          {% set accounts = status.accounts if status and status.accounts else [] %}
+          {% set pill_label = 'Loading...' %}
+          {% set pill_class = 'bg-slate-200 text-slate-700' %}
+          {% if ctx.error %}
+            {% set pill_label = 'Error' %}
+            {% set pill_class = 'bg-red-100 text-red-700' %}
+          {% elif ctx.requires_login %}
+            {% set pill_label = 'Sign-In Required' %}
+            {% set pill_class = 'bg-amber-100 text-amber-700' %}
+          {% elif accounts %}
+            {% set pill_label = 'Connected' %}
+            {% set pill_class = 'bg-emerald-100 text-emerald-700' %}
+          {% else %}
+            {% set pill_label = 'Unknown' %}
+            {% set pill_class = 'bg-slate-200 text-slate-700' %}
+          {% endif %}
+          <div class="bg-white p-6 rounded-xl shadow" data-ms-email-card data-profile="{{ slug }}" data-status-url="{{ url_for('admin_bp.ms_email_status', profile=slug) }}" data-start-url="{{ url_for('admin_bp.ms_email_start', profile=slug) }}">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-800">Microsoft Email — {{ ctx.meta.label }}</h3>
+                <p class="text-sm text-gray-600">{{ ctx.meta.description }}</p>
+              </div>
+              <span data-role="status-pill" class="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium {{ pill_class }}">{{ pill_label }}</span>
+            </div>
+            <div data-role="status-message" class="mt-3 text-sm text-gray-700">
+              {% if ctx.error %}
+              <div class="px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">{{ ctx.error }}</div>
+              {% elif ctx.requires_login %}
+              <div class="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg">
+                {{ ctx.token_error or ('Sign-in required. Click "Start Sign-In" to reconnect the %s mailbox.' % ctx.meta.label) }}
+              </div>
+              {% elif accounts %}
+              <div class="px-4 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg">
+                Connected as {{ accounts[0] }}.
+              </div>
+              {% else %}
+              <div class="px-4 py-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg">
+                Unable to determine status. Use the refresh button to check again.
+              </div>
+              {% endif %}
+            </div>
+            <div class="mt-4 flex flex-wrap gap-3">
+              <button data-role="refresh" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 hover:bg-slate-200">Refresh Status</button>
+              <button data-role="start" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Start Sign-In</button>
+            </div>
+            <div data-role="instructions" class="hidden mt-4">
+              <div class="px-4 py-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg">
+                <p class="text-sm font-semibold mb-2">Complete the Microsoft sign-in:</p>
+                <ol class="list-decimal list-inside text-sm space-y-1">
+                  <li>Open <a data-role="verification-link" class="text-blue-600 underline" href="#" target="_blank" rel="noopener noreferrer">the Microsoft device login page</a>.</li>
+                  <li>Enter the code <strong data-role="user-code">#####</strong>.</li>
+                  <li>Finish the sign-in before <span data-role="expires-at">--</span>.</li>
+                </ol>
+              </div>
+            </div>
+            <div data-role="flow-feedback" class="hidden mt-3 text-sm"></div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-800">Microsoft Email Alert Monitor</h3>
+              <p class="text-sm text-gray-600">We'll email this address if either integration needs attention.</p>
+            </div>
+          </div>
+          <form action="{{ url_for('admin_bp.update_ms_email_monitor') }}" method="POST" class="space-y-3">
+            <div>
+              <label class="text-sm text-gray-700">Alert Email</label>
+              <input name="monitor_email" type="email" placeholder="tech@example.com" value="{{ ms_email_monitor_setting.recipient_email if ms_email_monitor_setting else '' }}" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" name="monitor_enabled" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" {% if ms_email_monitor_setting and ms_email_monitor_setting.enabled %}checked{% endif %} />
+              Email me if Microsoft sign-ins break
+            </label>
+            <div class="grid grid-cols-2 gap-3 text-xs text-slate-500">
+              <p>Last status: {% if ms_email_monitor_setting and ms_email_monitor_setting.last_status_ok is not none %}{% if ms_email_monitor_setting.last_status_ok %}<span class="text-emerald-600 font-semibold">Healthy</span>{% else %}<span class="text-red-600 font-semibold">Issue detected</span>{% endif %}{% else %}--{% endif %}</p>
+              <p>Last checked: {{ ms_email_monitor_setting.last_checked_at.strftime('%d %b %Y %H:%M') if ms_email_monitor_setting and ms_email_monitor_setting.last_checked_at else '--' }}</p>
+            </div>
+            <button class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition">Save Monitor Settings</button>
+          </form>
+        </div>
+      </section>
+      <section id="insights" class="space-y-8">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p class="text-sm uppercase tracking-wide text-slate-500">Insights &amp; Oversight</p>
+            <h2 class="text-2xl font-semibold text-gray-900">Data, Audits &amp; Clean-Up</h2>
+            <p class="text-sm text-gray-600">Monitor blocked submissions and tidy up historical incidents or suspensions.</p>
+          </div>
+          <a href="#dashboard-top" class="text-sm text-slate-500 hover:text-slate-800">Back to top</a>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow space-y-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-800">Academic Terms</h3>
+              <p class="text-sm text-gray-500">Control which dates the Behaviour dashboard treats as Term 1 and Term 2.</p>
+            </div>
+            <span class="text-xs uppercase tracking-wide text-slate-400">Drives the Behaviour dashboard filters</span>
+          </div>
+          {% if academic_terms %}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for term in academic_terms %}
+            <form method="POST" action="{{ url_for('admin_bp.update_term_dates') }}" class="space-y-3 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <input type="hidden" name="slug" value="{{ term.slug }}" />
+              <p class="text-sm font-semibold text-slate-700">{{ term.name }}</p>
+              <div>
+                <label class="text-xs text-gray-500">Start date</label>
+                <input type="date" name="start_date" value="{{ term.start_date }}" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-500">End date</label>
+                <input type="date" name="end_date" value="{{ term.end_date }}" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <button type="submit" class="w-full px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition">Save {{ term.name }}</button>
+            </form>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="text-sm text-gray-500">Academic term settings are unavailable right now.</p>
+          {% endif %}
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 class="text-lg font-semibold text-gray-800">Blocked Sick Leave Attempts</h3>
+      <p class="text-sm text-gray-600">Submissions that were stopped between 5:30 AM and 8:00 AM UAE time.</p>
+    </div>
+    <span class="text-sm text-gray-500">{{ sick_window_attempts|length }} recent</span>
+  </div>
+
+  <div class="mt-4 border border-gray-100 rounded-2xl overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-100 text-sm">
+      <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Teacher</th>
+          <th class="px-4 py-3">Requested Date</th>
+          <th class="px-4 py-3">Attempted At</th>
+          <th class="px-4 py-3">Status</th>
+        </tr>
+      </thead>
+
+      <tbody class="divide-y divide-gray-50 text-gray-700">
+        {% if sick_window_attempts %}
+          {% for attempt in sick_window_attempts %}
+            <tr class="hover:bg-slate-50/70">
+              <td class="px-4 py-3">
+                <div class="font-semibold text-gray-900">{{ attempt.teacher_name }}</div>
+                <div class="text-xs text-gray-500">{{ attempt.teacher_email }}</div>
+              </td>
+
+              <td class="px-4 py-3">
+                {{ attempt.leave_date.strftime('%d %b %Y') if attempt.leave_date else '--' }}
+              </td>
+
+              <td class="px-4 py-3">
+                {{ attempt.attempted_at.strftime('%d %b %Y %H:%M') if attempt.attempted_at else '--' }}
+              </td>
+
+              <td class="px-4 py-3 text-sm text-slate-600">
+                Blocked by time window
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="4" class="px-4 py-5 text-center text-gray-500">
+              No blocked attempts in the last window.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+        <div class="bg-white p-6 rounded-xl shadow">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Students by Incident Count</h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+            <div>
+              <label class="text-sm text-gray-700">Search (Name/ESIS)</label>
+              <input id="si_search" class="mt-1 w-full px-3 py-2 border rounded" placeholder="e.g. Ahmed or 123456" />
+            </div>
+            <div>
+              <label class="text-sm text-gray-700">Min Incidents</label>
+              <input id="si_min" type="number" min="0" class="mt-1 w-full px-3 py-2 border rounded" />
+            </div>
+            <div>
+              <label class="text-sm text-gray-700">Max Incidents</label>
+              <input id="si_max" type="number" min="0" class="mt-1 w-full px-3 py-2 border rounded" />
+            </div>
+            <div class="md:col-span-2 flex items-end gap-2">
+              <button type="button" id="si_apply" class="px-4 py-2 bg-blue-600 text-white rounded">Apply</button>
+              <button type="button" id="si_reset" class="px-4 py-2 bg-gray-200 text-gray-800 rounded">Reset</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table id="si_table" class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th data-key="name" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">Student</th>
+                  <th data-key="esis" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">ESIS</th>
+                  <th data-key="homeroom" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">Homeroom</th>
+                  <th data-key="count" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">Incidents</th>
+                  <th data-key="last_date" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer">Last Incident</th>
+                </tr>
+              </thead>
+              <tbody id="si_tbody" class="bg-white divide-y divide-gray-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Manage Incidents</h3>
+            <div class="text-sm text-gray-500">Delete from here only</div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
+            <div>
+              <label class="text-sm text-gray-700">ESIS</label>
+              <input id="mi_esis" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="e.g. 123456" />
+            </div>
+            <div>
+              <label class="text-sm text-gray-700">Student Name</label>
+              <input id="mi_name" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="e.g. Ahmed" />
+            </div>
+            <div>
+              <label class="text-sm text-gray-700">Start Date</label>
+              <input id="mi_start" type="date" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" />
+            </div>
+            <div>
+              <label class="text-sm text-gray-700">End Date</label>
+              <input id="mi_end" type="date" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" />
+            </div>
+            <div class="flex items-end">
+              <button type="button" id="mi_load" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg">Load</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2 text-left">ID</th>
+                  <th class="px-4 py-2 text-left">Student</th>
+                  <th class="px-4 py-2 text-left">Homeroom</th>
+                  <th class="px-4 py-2 text-left">Date</th>
+                  <th class="px-4 py-2 text-left">Grade</th>
+                  <th class="px-4 py-2 text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="mi_tbody" class="bg-white divide-y divide-gray-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Manage Suspensions</h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+            <div>
+              <label class="text-sm text-gray-700">ESIS</label>
+              <input id="ms_esis" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="e.g. 123456" />
+            </div>
+            <div>
+              <label class="text-sm text-gray-700">Student Name</label>
+              <input id="ms_name" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="e.g. Ahmed" />
+            </div>
+            <div>
+              <label class="text-sm text-gray-700">Start Date</label>
+              <input id="ms_start" type="date" class="mt-1 block w-full px-3 py-2 rounded-lg border border-gray-300" />
+            </div>
+            <div class="flex items-end">
+              <button type="button" id="ms_load" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg">Load</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2 text-left">ID</th>
+                  <th class="px-4 py-2 text-left">Student</th>
+                  <th class="px-4 py-2 text-left">Class</th>
+                  <th class="px-4 py-2 text-left">Date</th>
+                  <th class="px-4 py-2 text-left">Duration</th>
+                  <th class="px-4 py-2 text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ms_tbody" class="bg-white divide-y divide-gray-200"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+            <th class="px-4 py-2 text-left">ID</th>
+            <th class="px-4 py-2 text-left">Student</th>
+            <th class="px-4 py-2 text-left">Class</th>
+            <th class="px-4 py-2 text-left">Date</th>
+            <th class="px-4 py-2 text-left">Duration</th>
+            <th class="px-4 py-2 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="ms_tbody" class="bg-white divide-y divide-gray-200"></tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const configs = {{ ms_email_integrations|tojson|safe }};
+      const pillBase = 'inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium transition';
+
+      function formatLocal(iso) {
+        if (!iso) return '--';
+        try {
+          return new Date(iso).toLocaleString();
+        } catch (err) {
+          return iso;
+        }
+      }
+
+      document.querySelectorAll('[data-ms-email-card]').forEach(card => {
+        const profile = card.dataset.profile;
+        const statusPill = card.querySelector('[data-role="status-pill"]');
+        const statusMessage = card.querySelector('[data-role="status-message"]');
+        const instructionsBox = card.querySelector('[data-role="instructions"]');
+        const feedbackBox = card.querySelector('[data-role="flow-feedback"]');
+        const userCodeEl = card.querySelector('[data-role="user-code"]');
+        const verificationLinkEl = card.querySelector('[data-role="verification-link"]');
+        const expiresAtEl = card.querySelector('[data-role="expires-at"]');
+        const refreshBtn = card.querySelector('[data-role="refresh"]');
+        const startBtn = card.querySelector('[data-role="start"]');
+        const statusUrl = card.dataset.statusUrl;
+        const startUrl = card.dataset.startUrl;
+        if (!statusPill || !statusMessage || !statusUrl || !startUrl) {
+          return;
+        }
+        const initial = configs[profile] || {};
+        let pollHandle = null;
+
+        function setPill(state, label) {
+          let classes = 'bg-slate-200 text-slate-700';
+          if (state === 'connected') classes = 'bg-emerald-100 text-emerald-700';
+          if (state === 'warning') classes = 'bg-amber-100 text-amber-700';
+          if (state === 'error') classes = 'bg-red-100 text-red-700';
+          if (state === 'pending') classes = 'bg-blue-100 text-blue-700';
+          statusPill.className = `${pillBase} ${classes}`;
+          statusPill.textContent = label;
+        }
+
+        function showInstructions(flow) {
+          if (!instructionsBox) return;
+          if (!flow) {
+            instructionsBox.classList.add('hidden');
+            return;
+          }
+          const uri = flow.verification_uri || 'https://microsoft.com/devicelogin';
+          if (verificationLinkEl) verificationLinkEl.href = uri;
+          if (userCodeEl) userCodeEl.textContent = flow.user_code || '-----';
+          if (expiresAtEl) expiresAtEl.textContent = formatLocal(flow.expires_at);
+          instructionsBox.classList.remove('hidden');
+        }
+
+        function hideInstructions() {
+          instructionsBox?.classList.add('hidden');
+        }
+
+        function showFeedback(kind, text) {
+          if (!feedbackBox) return;
+          if (!text) {
+            feedbackBox.classList.add('hidden');
+            feedbackBox.textContent = '';
+            return;
+          }
+          let classes = 'px-4 py-3 border rounded-lg mt-2';
+          if (kind === 'success') classes += ' bg-emerald-50 border-emerald-200 text-emerald-700';
+          else if (kind === 'error') classes += ' bg-red-50 border-red-200 text-red-700';
+          else classes += ' bg-blue-50 border-blue-200 text-blue-800';
+          feedbackBox.className = classes;
+          feedbackBox.textContent = text;
+          feedbackBox.classList.remove('hidden');
+        }
+
+        function applyInitial() {
+          if (initial.error) {
+            setPill('error', 'Error');
+            return;
+          }
+          if (initial.requires_login) {
+            setPill('warning', 'Sign-In Required');
+            return;
+          }
+          const accounts = (initial.status && Array.isArray(initial.status.accounts)) ? initial.status.accounts : [];
+          if (accounts.length) {
+            setPill('connected', 'Connected');
+          } else {
+            setPill('warning', 'Unknown');
+          }
+        }
+
+        async function refreshStatus({ schedulePoll = false } = {}) {
+          if (pollHandle) {
+            clearTimeout(pollHandle);
+            pollHandle = null;
+          }
+          try {
+            refreshBtn?.setAttribute('disabled', 'disabled');
+            const response = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) throw new Error(`Status request failed (${response.status})`);
+            const payload = await response.json();
+            if (!payload.ok) throw new Error(payload.error || 'Unknown error retrieving status.');
+
+            const statusData = payload.status || {};
+            const accounts = Array.isArray(statusData.accounts) ? statusData.accounts : [];
+            const tokenReady = Boolean(payload.token_ready);
+            const tokenError = payload.token_error;
+            const flows = Array.isArray(payload.flows) ? payload.flows : [];
+
+            if (tokenReady) {
+              setPill('connected', 'Connected');
+              const label = accounts.length ? `Connected as ${accounts[0]}.` : 'Microsoft email is connected.';
+              statusMessage.innerHTML = `<div class="px-4 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg">${label}</div>`;
+            } else {
+              setPill('warning', 'Sign-In Required');
+              const msg = tokenError || 'Microsoft account needs to be reconnected. Click &quot;Start Sign-In&quot;.';
+              statusMessage.innerHTML = `<div class="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg">${msg}</div>`;
+            }
+
+            const sortedFlows = flows.slice().sort((a, b) => {
+              const aTime = new Date(a.created_at || a.expires_at || 0).getTime();
+              const bTime = new Date(b.created_at || b.expires_at || 0).getTime();
+              return bTime - aTime;
+            });
+            const activeFlow = sortedFlows.find(flow => flow.status === 'pending');
+            const latestFlow = sortedFlows[0];
+
+            if (activeFlow) {
+              setPill('pending', 'Awaiting Sign-In');
+              showInstructions(activeFlow);
+              showFeedback('info', 'Waiting for Microsoft sign-in to finish.');
+              const pollInterval = Math.max((activeFlow.interval || 5) * 1000, 4000);
+              pollHandle = setTimeout(() => refreshStatus({ schedulePoll: true }), pollInterval);
+            } else {
+              hideInstructions();
+              if (latestFlow && latestFlow.status === 'success') {
+                showFeedback('success', `Signed in successfully${latestFlow.account ? ` as ${latestFlow.account}` : ''}.`);
+                if (!tokenReady && schedulePoll) {
+                  pollHandle = setTimeout(() => refreshStatus({ schedulePoll: true }), 4000);
+                }
+              } else if (latestFlow && latestFlow.status === 'error') {
+                showFeedback('error', latestFlow.message || 'Sign-in failed. Please try again.');
+              } else {
+                showFeedback(null, '');
+              }
+            }
+          } catch (err) {
+            console.error(err);
+            setPill('error', 'Error');
+            const message = err.message || String(err);
+            statusMessage.innerHTML = `<div class="px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">${message}</div>`;
+            showFeedback('error', message);
+          } finally {
+            refreshBtn?.removeAttribute('disabled');
+          }
+        }
+
+        async function startSignIn() {
+          if (!startBtn) return;
+          startBtn.setAttribute('disabled', 'disabled');
+          const originalText = startBtn.textContent;
+          startBtn.textContent = 'Starting...';
+          showFeedback(null, '');
+          try {
+            const response = await fetch(startUrl, {
+              method: 'POST',
+              headers: { 'Accept': 'application/json' },
+            });
+            if (!response.ok) throw new Error(`Unable to start sign-in (${response.status})`);
+            const payload = await response.json();
+            if (!payload.ok) throw new Error(payload.error || 'Failed to start sign-in flow.');
+
+            const flow = payload.flow;
+            setPill('pending', 'Awaiting Sign-In');
+            showInstructions(flow);
+            showFeedback('info', 'Enter the code in the Microsoft sign-in page to finish connecting.');
+            refreshStatus({ schedulePoll: true });
+          } catch (err) {
+            console.error(err);
+            setPill('error', 'Error');
+            const message = err.message || String(err);
+            statusMessage.innerHTML = `<div class="px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">${message}</div>`;
+            showFeedback('error', message);
+          } finally {
+            startBtn.removeAttribute('disabled');
+            startBtn.textContent = originalText;
+          }
+        }
+
+        applyInitial();
+        refreshBtn?.addEventListener('click', () => refreshStatus());
+        startBtn?.addEventListener('click', () => startSignIn());
+      });
+    })();
+  </script>
+  <script>
+    // Sort teachers table client-side
+    (function(){
+      const table = document.getElementById('teachers_table');
+      if (!table) return;
+      const tbody = table.querySelector('tbody');
+      const getRoleText = (row) => {
+        const sel = row.querySelector('select[name="role"]');
+        return sel ? sel.options[sel.selectedIndex].text.toLowerCase() : '';
+      };
+      const compare = (a, b, idx, asc) => {
+        let va = '', vb = '';
+        if (idx === 4) { // role column
+          va = getRoleText(a);
+          vb = getRoleText(b);
+        } else {
+          va = a.children[0].children[idx].textContent.trim().toLowerCase();
+          vb = b.children[0].children[idx].textContent.trim().toLowerCase();
+        }
+        if (!isNaN(parseFloat(va)) && !isNaN(parseFloat(vb))) {
+          va = parseFloat(va); vb = parseFloat(vb);
+        }
+        if (va < vb) return asc ? -1 : 1;
+        if (va > vb) return asc ? 1 : -1;
+        return 0;
+      };
+      table.querySelectorAll('th[data-sort-index]').forEach(th => {
+        let asc = true;
+        th.addEventListener('click', () => {
+          const idx = parseInt(th.dataset.sortIndex, 10);
+          const rows = Array.from(tbody.querySelectorAll('tr'));
+          rows.sort((a,b) => compare(a,b,idx,asc));
+          rows.forEach(r => tbody.appendChild(r));
+          asc = !asc;
+        });
+      });
+    })();
+
+    // Student incidents list with filters + sorting
+    (function(){
+      const tbody = document.getElementById('si_tbody');
+      if (!tbody) return;
+      const inputSearch = document.getElementById('si_search');
+      const inputMin = document.getElementById('si_min');
+      const inputMax = document.getElementById('si_max');
+      const btnApply = document.getElementById('si_apply');
+      const btnReset = document.getElementById('si_reset');
+      const thead = document.querySelector('#si_table thead');
+      let data = [];
+      let sortKey = 'count';
+      let sortAsc = false;
+      const overlay = window.__loadingOverlay;
+
+      const fetchData = async () => {
+        const p = new URLSearchParams();
+        if (inputSearch.value) p.set('search', inputSearch.value);
+        if (inputMin.value) p.set('min_count', inputMin.value);
+        if (inputMax.value) p.set('max_count', inputMax.value);
+        const url = `{{ url_for('admin_bp.api_student_incidents') }}?${p.toString()}`;
+        overlay?.show('Loading student incidents...');
+        try {
+          const res = await fetch(url);
+          const json = await res.json();
+          data = json.data || [];
+          render();
+        } catch (err) {
+          console.error('Unable to load incidents', err);
+        } finally {
+          overlay?.hide();
+        }
+      };
+
+      const render = () => {
+        const rows = data.slice().sort((a,b) => {
+          const va = a[sortKey] ?? '';
+          const vb = b[sortKey] ?? '';
+          if (sortKey === 'count') return sortAsc ? (va - vb) : (vb - va);
+          return sortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+        }).map(r => {
+          return `<tr>
+            <td class="px-4 py-2">${r.name || ''}</td>
+            <td class="px-4 py-2">${r.esis || ''}</td>
+            <td class="px-4 py-2">${r.homeroom || ''}</td>
+            <td class="px-4 py-2">${r.count}</td>
+            <td class="px-4 py-2">${r.last_date || ''}</td>
+          </tr>`;
+        }).join('');
+        tbody.innerHTML = rows || '<tr><td class="px-4 py-3 text-sm text-gray-500" colspan="5">No data</td></tr>';
+      };
+
+      btnApply.addEventListener('click', (e) => { e.preventDefault(); fetchData(); });
+      btnReset.addEventListener('click', (e) => { e.preventDefault(); inputSearch.value=''; inputMin.value=''; inputMax.value=''; fetchData(); });
+      thead.addEventListener('click', (e) => {
+        const th = e.target.closest('th[data-key]');
+        if (!th) return;
+        const key = th.dataset.key;
+        if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = (key !== 'count'); }
+        render();
+      });
+
+      fetchData();
+    })();
+  </script>
+  <script>
+(function(){
+      const lookupBtn = document.getElementById('student-lookup');
+      if (!lookupBtn) return;
+      const esisInput = document.getElementById('student-esis');
+      const nameInput = document.getElementById('student-name');
+      const homeroomInput = document.getElementById('student-homeroom');
+      const overlay = window.__loadingOverlay;
+
+      const setLoading = (loading) => {
+        lookupBtn.disabled = loading;
+        lookupBtn.textContent = loading ? 'Searching...' : 'Lookup';
+      };
+
+      lookupBtn.addEventListener('click', async () => {
+        const esis = (esisInput.value || '').trim();
+        if (!esis) {
+          alert('Enter an ESIS ID to lookup.');
+          esisInput.focus();
+          return;
+        }
+        try {
+          setLoading(true);
+          overlay?.show('Looking up student...');
+          const res = await fetch(`{{ url_for('admin_bp.lookup_student') }}?esis=${encodeURIComponent(esis)}`);
+          if (!res.ok) {
+            throw new Error('Lookup failed.');
+          }
+          const data = await res.json();
+          if (data.found && data.student) {
+            nameInput.value = data.student.name || '';
+            homeroomInput.value = data.student.homeroom || '';
+          } else {
+            alert('No student found. Enter the details to add a new student.');
+            nameInput.value = '';
+            homeroomInput.value = '';
+          }
+        } catch (e) {
+          alert(e.message || 'Unable to find student.');
+        } finally {
+          overlay?.hide();
+          setLoading(false);
+        }
+      });
+    })();
+  </script>
+  <script>
+    // Manage Incidents / Suspensions loaders
+    (function(){
+      const miBtn = document.getElementById('mi_load');
+      const miTbody = document.getElementById('mi_tbody');
+      const overlay = window.__loadingOverlay;
+      if (miBtn && miTbody) {
+        miBtn.addEventListener('click', async () => {
+          const p = new URLSearchParams();
+          const esis = document.getElementById('mi_esis').value.trim();
+          const name = document.getElementById('mi_name').value.trim();
+          const sd = document.getElementById('mi_start').value;
+          const ed = document.getElementById('mi_end').value;
+          if (esis) p.set('esis', esis);
+          if (name) p.set('student_name', name);
+          if (sd) p.set('start_date', sd);
+          if (ed) p.set('end_date', ed);
+          overlay?.show('Loading incidents...');
+          try {
+            const res = await fetch(`{{ url_for('behaviour_bp.get_incidents_api') }}?${p.toString()}`);
+            const json = await res.json();
+            const rows = (json.incidents || []).map(r => `
+            <tr>
+              <td class="px-4 py-2">${r.id}</td>
+              <td class="px-4 py-2"><a class="text-blue-600 hover:underline" href="/report/incident/${r.id}" target="_blank">${r.name} (${r.esis})</a></td>
+              <td class="px-4 py-2">${r.homeroom || ''}</td>
+              <td class="px-4 py-2">${r.date_of_incident || ''}</td>
+              <td class="px-4 py-2">${r.incident_grade || ''}</td>
+              <td class="px-4 py-2">
+                <form method="POST" action="{{ url_for('admin_bp.delete_incident_admin', incident_id=0) }}" onsubmit="return confirm('Delete this incident permanently?');">
+                  <input type="hidden" name="_" value="1" />
+                  <button formaction="/admin/incidents/${r.id}/delete" class="px-3 py-1 bg-red-600 text-white rounded">Delete</button>
+                </form>
+              </td>
+            </tr>`).join('');
+            miTbody.innerHTML = rows || '<tr><td colspan="6" class="px-4 py-3 text-gray-500">No incidents found</td></tr>';
+          } catch (err) {
+            console.error('Unable to load incidents', err);
+          } finally {
+            overlay?.hide();
+          }
+        });
+      }
+
+      const msBtn = document.getElementById('ms_load');
+      const msTbody = document.getElementById('ms_tbody');
+      if (msBtn && msTbody) {
+        msBtn.addEventListener('click', async () => {
+          const p = new URLSearchParams();
+          const esis = document.getElementById('ms_esis').value.trim();
+          const name = document.getElementById('ms_name').value.trim();
+          const sd = document.getElementById('ms_start').value;
+          if (esis) p.set('esis', esis);
+          if (name) p.set('student_name', name);
+          if (sd) p.set('start_date', sd);
+          overlay?.show('Loading suspensions...');
+          try {
+            const res = await fetch(`{{ url_for('behaviour_bp.get_suspensions_api') }}?${p.toString()}`);
+            const json = await res.json();
+            const rows = (json.suspensions || []).map(r => `
+            <tr>
+              <td class="px-4 py-2">${r.id}</td>
+              <td class="px-4 py-2"><a class="text-blue-600 hover:underline" href="/suspensions/${r.id}" target="_blank">${r.student_name} (${r.esis})</a></td>
+              <td class="px-4 py-2">${r.grade_class || ''}</td>
+              <td class="px-4 py-2">${r.date_of_suspension || ''}</td>
+              <td class="px-4 py-2">${r.duration || ''}</td>
+              <td class="px-4 py-2">
+                <form method="POST" action="{{ url_for('admin_bp.delete_suspension_admin', suspension_id=0) }}" onsubmit="return confirm('Delete this suspension permanently?');">
+                  <input type="hidden" name="_" value="1" />
+                  <button formaction="/admin/suspensions/${r.id}/delete" class="px-3 py-1 bg-red-600 text-white rounded">Delete</button>
+                </form>
+              </td>
+            </tr>`).join('');
+            msTbody.innerHTML = rows || '<tr><td colspan="6" class="px-4 py-3 text-gray-500">No suspensions found</td></tr>';
+          } catch (err) {
+            console.error('Unable to load suspensions', err);
+          } finally {
+            overlay?.hide();
+          }
+        });
+      }
+    })();
+  </script>
+  <script>
+    (function(){
+      const navLinks = Array.from(document.querySelectorAll('[data-section-link]'));
+      if (!navLinks.length) return;
+      const sections = navLinks
+        .map(link => ({ link, target: document.querySelector(link.getAttribute('href')) }))
+        .filter(item => item.target);
+
+      const setActive = (activeLink) => {
+        navLinks.forEach(link => {
+          link.dataset.active = (link === activeLink) ? 'true' : 'false';
+        });
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const match = sections.find(item => item.target === entry.target);
+            if (match) {
+              setActive(match.link);
+            }
+          }
+        });
+      }, { threshold: 0.2 });
+
+      sections.forEach(({ target }) => observer.observe(target));
+
+      navLinks.forEach(link => {
+        link.addEventListener('click', () => setActive(link));
+      });
+
+      if (navLinks.length) {
+        setActive(navLinks[0]);
+      }
+    })();
+  </script>
+</body>
+</html>
+
+
+

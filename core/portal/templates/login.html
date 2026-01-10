@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Suite | Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card glass">
+            <div class="logo">SAAS SUITE</div>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">One Identity. All your apps.</p>
+            <a href="{{ url_for('login') }}" class="btn-primary">Login with SSO</a>
+            <p style="margin-top: 2rem; font-size: 0.75rem; color: var(--text-muted);">
+                Protected by Enterprise Identity Provider
+            </p>
+        </div>
+    </div>
+</body>
+</html>
