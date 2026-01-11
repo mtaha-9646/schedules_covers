@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db:
+    restart: always
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  keycloak:
+    restart: always
+
+  control-plane:
+    restart: always
+
+  portal:
+    restart: always
+    environment:
+      # In production, these should point to your public domain/IP
+      VITE_API_URL: "/"
+      VITE_KEYCLOAK_URL: "/auth"
+
+  app-schedules:
+    restart: always
+
+  app-behavior:
+    restart: always
+
+  app-absence:
+    restart: always
+
+volumes:
+  db_data:
