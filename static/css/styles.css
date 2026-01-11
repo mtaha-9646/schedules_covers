@@ -1,0 +1,41 @@
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: -999px;
+  padding: 0.5rem 1rem;
+  background: white;
+  color: #2563eb;
+  border: 1px solid #94a3b8;
+  border-radius: 999px;
+  z-index: 50;
+}
+
+.skip-link:focus-visible {
+  left: 1rem;
+  top: 1rem;
+}
+
+@media print {
+  body {
+    background-color: #fff;
+    color: #0f172a;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  th, td {
+    border: 1px solid #e2e8f0;
+    padding: 0.4rem;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

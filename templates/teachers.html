@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="grid gap-6 rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div>
+      <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Teacher schedules</p>
+      <h1 class="text-3xl font-semibold text-slate-900">Real-time visibility across departments</h1>
+      <p class="mt-2 text-slate-500">
+        Cards below surface total courses, grade coverage, and how regularly each teacher is scheduled. Combine the search and filters with the availability checker for a fast response.
+      </p>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-4">
+      <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+        <p class="text-[11px] uppercase tracking-[0.3em] text-slate-500">Total</p>
+        <p class="text-2xl font-semibold text-slate-900">{{ stats.total_teachers }}</p>
+        <p class="text-sm text-slate-500">Teachers in roster</p>
+      </div>
+      <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+        <p class="text-[11px] uppercase tracking-[0.3em] text-slate-500">Middle</p>
+        <p class="text-2xl font-semibold text-slate-900">{{ stats.middle }}</p>
+        <p class="text-sm text-slate-500">Middle school</p>
+      </div>
+      <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+        <p class="text-[11px] uppercase tracking-[0.3em] text-slate-500">High</p>
+        <p class="text-2xl font-semibold text-slate-900">{{ stats.high }}</p>
+        <p class="text-sm text-slate-500">High school</p>
+      </div>
+      <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+        <p class="text-[11px] uppercase tracking-[0.3em] text-slate-500">General</p>
+        <p class="text-2xl font-semibold text-slate-900">{{ stats.general }}</p>
+        <p class="text-sm text-slate-500">Support / floating</p>
+      </div>
+    </div>
+    <section class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-[11px] uppercase tracking-[0.3em] text-slate-500">Coverage this week</p>
+        <div class="flex flex-wrap gap-2 no-print">
+          <button
+            type="button"
+            data-table-action="print"
+            data-table-target="#coverage-summary-table"
+            data-table-title="coverage summary"
+            class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+          >
+            Print
+          </button>
+          <button
+            type="button"
+            data-table-action="save-pdf"
+            data-table-target="#coverage-summary-table"
+            data-table-title="coverage summary"
+            class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+          >
+            Save PDF
+          </button>
+          <button
+            type="button"
+            data-table-action="export"
+            data-table-target="#coverage-summary-table"
+            data-table-title="coverage summary"
+            class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+          >
+            Export Excel
+          </button>
+        </div>
+      </div>
+      <div class="overflow-auto">
+        <table id="coverage-summary-table" class="min-w-full text-xs text-slate-600">
+          <thead class="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+            <tr>
+              <th class="px-3 py-2 text-left">Day</th>
+              <th class="px-3 py-2 text-left">Covered periods</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in coverage_summary %}
+            <tr class="border-t border-slate-100 text-sm {% if item.is_today %}bg-slate-50{% endif %}">
+              <td class="px-3 py-2 font-semibold {% if item.is_today %}text-slate-900{% else %}text-slate-600{% endif %}">{{ item.label }}</td>
+              <td class="px-3 py-2 {% if item.is_today %}text-emerald-600 font-semibold{% else %}text-slate-600{% endif %}">{{ item.count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Availability checker</p>
+        <h2 class="mt-1 text-2xl font-semibold text-slate-900">Live period readiness</h2>
+        <p class="text-sm text-slate-500">Switch to the dedicated Availability table to see each teacher’s status by day and period, then print or download that data.</p>
+      </div>
+      <a href="{{ url_for('availability_page') }}" class="rounded-2xl border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Open availability table</a>
+    </div>
+  </section>
+
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Roster filters</p>
+        <h2 class="text-xl font-semibold text-slate-900">Find teachers quickly</h2>
+      </div>
+      <a href="{{ url_for('print_all') }}" class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50">Print all schedules</a>
+    </div>
+    <div class="mt-4 flex flex-wrap gap-3">
+      <input id="teacher-search" type="text" placeholder="Search by name" class="flex-1 min-w-[200px] rounded-2xl border border-slate-200 px-4 py-2 text-sm" />
+      <select id="type-filter" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm">
+        <option value="all">All teachers</option>
+        <option value="Middle School">Middle School</option>
+        <option value="High School">High School</option>
+        <option value="Middle & High School">Middle & High School</option>
+        <option value="General">General</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="grid gap-4 md:grid-cols-2 lg:grid-cols-3" id="teacher-grid">
+    {% for teacher in teachers %}
+    <article class="flex h-full flex-col justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow transition hover:-translate-y-1 hover:shadow-lg" data-teacher-type="{{ teacher.level_label }}" data-teacher-name="{{ teacher.name | lower }}">
+      <div>
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-lg font-semibold text-slate-900">
+            <a href="{{ url_for('teacher_detail', slug=teacher.slug) }}" class="hover:text-slate-700">{{ teacher.name }}</a>
+          </h3>
+          <span class="rounded-full border border-slate-200 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-slate-500">{{ teacher.primary_class }}</span>
+        </div>
+        <p class="text-sm text-slate-500">{{ teacher.subject }}</p>
+      </div>
+      <p class="text-sm text-slate-500">{{ teacher.level_label }} &middot; {{ teacher.day_count }} day(s) &middot; {{ teacher.course_total }} courses</p>
+      <a class="text-sm font-semibold text-emerald-600 hover:text-emerald-500" href="{{ url_for('teacher_detail', slug=teacher.slug) }}">View schedule ?</a>
+    </article>
+    {% endfor %}
+  </section>
+</div>
+
+<script>
+  const searchInput = document.querySelector("#teacher-search");
+  const typeFilter = document.querySelector("#type-filter");
+  const cards = document.querySelectorAll("[data-teacher-name]");
+
+  const filterCards = () => {
+    const searchTerm = searchInput.value.toLowerCase();
+    const selectedType = typeFilter.value;
+    cards.forEach((card) => {
+      const matchesTerm = card.dataset.teacherName.includes(searchTerm);
+      const matchesType = selectedType === "all" || card.dataset.teacherType === selectedType;
+      card.style.display = matchesTerm && matchesType ? "grid" : "none";
+    });
+  };
+
+  searchInput.addEventListener("input", filterCards);
+  typeFilter.addEventListener("change", filterCards);
+</script>
+{% endblock %}

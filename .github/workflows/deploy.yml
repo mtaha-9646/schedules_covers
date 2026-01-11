@@ -1,36 +1,14 @@
-name: Deploy to OCI
-
+name: Trigger Deploy
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
 
 jobs:
-  deploy:
+  notify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Copy files to OCI
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.OCI_HOST }}
-          username: ${{ secrets.OCI_USERNAME }}
-          key: ${{ secrets.OCI_KEY }}
-          source: "."
-          target: "/home/${{ secrets.OCI_USERNAME }}/saas-suite"
-
-      - name: Deploy with Docker Compose
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.OCI_HOST }}
-          username: ${{ secrets.OCI_USERNAME }}
-          key: ${{ secrets.OCI_KEY }}
-          script: |
-            cd saas-suite
-            # Create/ensure acme.json if you add Traefik later, but for now just basic deploy
-            
-            # Start services using prod override
-            sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
-            
-            # Prune unused images to save space on the small VM
-            sudo docker system prune -f
+      - name: Call deploy endpoint
+        run: |
+          curl -X POST "${{ secrets.DEPLOY_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Secret: ${{ secrets.DEPLOY_SECRET }}"
