@@ -103,5 +103,44 @@
       </div>
     </form>
   </section>
+
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow space-y-4">
+    <div>
+      <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Cover exclusions</p>
+      <h2 class="text-xl font-semibold text-slate-900">Teachers who should not cover</h2>
+      <p class="text-sm text-slate-500">Select teachers who should never be assigned as covers.</p>
+    </div>
+    {% if exclusions_updated %}
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      Exclusion list updated.
+    </div>
+    {% endif %}
+    <form method="post" action="{{ url_for('assignment_exclusions') }}" class="space-y-4">
+      <div class="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+        {% for teacher in teachers %}
+        <label class="flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            name="excluded_slugs"
+            value="{{ teacher.slug }}"
+            {% if teacher.slug in excluded_slugs %}checked{% endif %}
+            class="h-4 w-4 rounded border-slate-300 text-slate-900"
+          />
+          <span class="flex-1">{{ teacher.name }}</span>
+          <span class="text-[11px] uppercase tracking-[0.3em] text-slate-400">{{ teacher.level_label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white hover:bg-slate-800"
+        >
+          Save exclusions
+        </button>
+        <p class="text-xs text-slate-500">Excluded teachers will never be selected for cover assignments.</p>
+      </div>
+    </form>
+  </section>
 </div>
 {% endblock %}

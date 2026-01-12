@@ -461,10 +461,21 @@ def assignment_settings():
         if updates:
             settings_manager.update(updates)
         return redirect(url_for("assignment_settings"))
+    exclusions_updated = request.args.get("exclusions_updated")
     return render_template(
         "assignment_settings.html",
         settings=settings_manager.to_dict(),
+        teachers=manager.teacher_cards,
+        excluded_slugs=assignment_manager.excluded_teacher_slugs(),
+        exclusions_updated=exclusions_updated,
     )
+
+
+@app.route("/assignments/exclusions", methods=["POST"])
+def assignment_exclusions():
+    slugs = request.form.getlist("excluded_slugs")
+    assignment_manager.update_excluded_teachers(slugs)
+    return redirect(url_for("assignment_settings", exclusions_updated="1"))
 
 
 def _build_leaderboard_entries() -> list[dict[str, Any]]:

@@ -722,7 +722,7 @@ class ScheduleManager:
             day_name = DAY_LABELS.get(day_code, day_code)
             day_rows = schedule_df[schedule_df["DayCode"] == day_code]
             max_periods = self._max_periods_for_level(meta["level_label"], day_code)
-            scheduled_count = len(day_rows)
+            scheduled_count = len(day_rows[day_rows["PeriodGroup"] != "Homeroom"])
             day_sections = self._group_periods(day_rows)
             schedule_by_day.append(
                 {
