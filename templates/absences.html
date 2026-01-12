@@ -37,6 +37,15 @@
       {% endif %}
     </div>
     {% endif %}
+    {% if clear_status %}
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      {% if clear_status == "success" %}
+        Removed {{ clear_count }} cover assignment(s). Use "Assign pending absences" to reassign.
+      {% else %}
+        No assignments were removed for this absence.
+      {% endif %}
+    </div>
+    {% endif %}
     <form method="post" action="{{ url_for('assign_missing_absences') }}" class="flex flex-wrap items-center gap-3">
       <button
         type="submit"
@@ -188,6 +197,7 @@
           <th class="px-4 py-3 text-left">Status</th>
           <th class="px-4 py-3 text-left">Reason</th>
           <th class="px-4 py-3 text-left">Assignment</th>
+          <th class="px-4 py-3 text-left">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -210,6 +220,18 @@
             {% else %}
             <span class="text-rose-600 font-semibold uppercase tracking-[0.3em] text-[10px]">Pending</span>
             {% endif %}
+          </td>
+          <td class="px-4 py-3">
+            <form method="post" action="{{ url_for('clear_absence_assignments') }}" class="inline">
+              <input type="hidden" name="request_id" value="{{ entry.request_id }}" />
+              <input type="hidden" name="date" value="{{ selected_date or '' }}" />
+              <button
+                type="submit"
+                class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+              >
+                Clear covers
+              </button>
+            </form>
           </td>
         </tr>
         {% endfor %}

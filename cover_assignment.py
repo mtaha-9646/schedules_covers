@@ -763,6 +763,26 @@ class CoverAssignmentManager:
                 session.commit()
         self._persist_assignments()
 
+    def clear_assignments_for_request(self, request_id: Optional[str]) -> int:
+        if not request_id:
+            return 0
+        removed = 0
+        for date_key, rows in list(self.assignments.items()):
+            kept = [row for row in rows if row.get("request_id") != request_id]
+            removed += len(rows) - len(kept)
+            if kept:
+                self.assignments[date_key] = kept
+            else:
+                self.assignments.pop(date_key, None)
+        if self._session_factory:
+            with self._session_factory() as session:
+                session.query(CoverAssignment).filter(
+                    CoverAssignment.request_id == request_id
+                ).delete()
+                session.commit()
+        self._persist_assignments()
+        return removed
+
     def excluded_teacher_slugs(self) -> set[str]:
         return set(self._excluded_slugs)
 

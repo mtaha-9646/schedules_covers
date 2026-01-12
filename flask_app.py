@@ -430,6 +430,8 @@ def absences_overview():
     absences_request_enabled = covers_manager.can_request_absences()
     manual_status = request.args.get("manual_status")
     manual_reason = request.args.get("manual_reason")
+    clear_status = request.args.get("clear_status")
+    clear_count = _to_int(request.args.get("clear_count"))
 
     assigned_ids = assignment_manager.assigned_request_ids()
     assigned_count = sum(1 for entry in rows if entry.get("request_id") in assigned_ids)
@@ -470,6 +472,8 @@ def absences_overview():
         absences_request_enabled=absences_request_enabled,
         manual_status=manual_status,
         manual_reason=manual_reason,
+        clear_status=clear_status,
+        clear_count=clear_count,
     )
 
 
@@ -581,6 +585,21 @@ def request_absences_webhook():
             sync_status=result.get("status"),
             sync_added=added,
             sync_skipped=skipped,
+        )
+    )
+
+
+@app.route("/absences/clear-assignments", methods=["POST"])
+def clear_absence_assignments():
+    request_id = (request.form.get("request_id") or "").strip()
+    date_value = request.form.get("date") or ""
+    removed = assignment_manager.clear_assignments_for_request(request_id)
+    return redirect(
+        url_for(
+            "absences_overview",
+            date=date_value or None,
+            clear_status="success" if removed else "failed",
+            clear_count=removed,
         )
     )
 
