@@ -320,38 +320,44 @@ def availability():
 def check_availability():
     period_raw = request.args.get("period")
     day_raw = request.args.get("day")
-    day_raw = request.args.get("day")
     date_raw = request.args.get("date")
-    if not period_raw or not day_raw or not date_raw:
-        return jsonify({"error": "Parameters 'date', 'day', and 'period' are all required"}), 400
-    try:
-        requested_date = datetime.fromisoformat(date_raw).date()
-    except ValueError:
-        return jsonify({"error": f"Could not parse date '{date_raw}'"}), 400
+    if not period_raw or not day_raw:
+        return jsonify({"error": "Parameters 'day' and 'period' are required"}), 400
     period_label = manager.normalize_period(period_raw) or period_raw.strip()
-    derived_day_code = DAY_CODE_BY_WEEKDAY.get(requested_date.weekday())
-    if not derived_day_code:
-        return jsonify({"error": "Date falls outside supported weekdays"}), 400
     normalized_day = manager.normalize_day(day_raw)
     if not normalized_day:
         return jsonify({"error": f"Could not parse day '{day_raw}'"}), 400
-    if normalized_day != derived_day_code:
-        return (
-            jsonify(
-                {
-                    "error": "Specified day does not match provided date",
-                    "date_day": derived_day_code,
-                    "requested_day": normalized_day,
-                }
-            ),
-            400,
-        )
-    available = manager.teachers_available_for_api(derived_day_code, period_label)
+    if date_raw:
+        try:
+            requested_date = datetime.fromisoformat(date_raw).date()
+        except ValueError:
+            return jsonify({"error": f"Could not parse date '{date_raw}'"}), 400
+        derived_day_code = WEEKDAY_TO_DAY_CODE.get(requested_date.weekday())
+        if not derived_day_code:
+            return jsonify({"error": "Date falls outside supported weekdays"}), 400
+        if normalized_day != derived_day_code:
+            return (
+                jsonify(
+                    {
+                        "error": "Specified day does not match provided date",
+                        "date_day": derived_day_code,
+                        "requested_day": normalized_day,
+                    }
+                ),
+                400,
+            )
+        available = manager.teachers_available_for_api(derived_day_code, period_label)
+        day_code = derived_day_code
+        response_date = requested_date.isoformat()
+    else:
+        available = manager.teachers_available_for_api(normalized_day, period_label)
+        day_code = normalized_day
+        response_date = None
     return jsonify(
         {
-            "date": requested_date.isoformat(),
-            "day": derived_day_code,
-            "day_label": DAY_LABELS.get(derived_day_code, derived_day_code),
+            "date": response_date,
+            "day": day_code,
+            "day_label": DAY_LABELS.get(day_code, day_code),
             "period": period_label,
             "count": len(available),
             "available": available,
