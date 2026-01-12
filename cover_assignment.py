@@ -143,21 +143,13 @@ class CoverAssignmentManager:
             date_key = current.isoformat()
             details = self._details_for_teacher_on_day(absent_slug, day_code)
             if not details:
-                logger.warning(
-                    "No schedule data for %s on %s, falling back to general cover slot",
+                logger.info(
+                    "Skipping cover assignment for %s on %s (no schedule data)",
                     record.get("teacher"),
                     date_key,
                 )
-                details = [
-                    {
-                        "period_label": "General",
-                        "period_raw": "General",
-                        "subject": record_subject or "General",
-                        "grade": record.get("level_label"),
-                        "details": "Full day absence fallback",
-                        "time": "All day",
-                    }
-                ]
+                current += timedelta(days=1)
+                continue
             is_friday = day_code == "Fr"
             hs_max_slots = 5 if is_friday else 7
             absent_emails = {
@@ -202,6 +194,7 @@ class CoverAssignmentManager:
         absent_emails: Set[str],
         session_covers_log: dict[str, int],
         hs_max_slots: int,
+        exclude_slugs: Optional[Set[str]] = None,
     ) -> Optional[dict[str, Any]]:
         period_label_raw = detail.get("period_label") or detail.get("period_raw") or ""
         period_lookup = self.schedule_manager.normalize_period(period_label_raw) or period_label_raw
@@ -218,6 +211,8 @@ class CoverAssignmentManager:
             slug = teacher.get("slug")
             email = str(teacher.get("email") or "").strip().lower()
             if not slug or not email or email == absent_email:
+                continue
+            if exclude_slugs and slug in exclude_slugs:
                 continue
             if slug in self._excluded_slugs:
                 continue
@@ -427,6 +422,62 @@ class CoverAssignmentManager:
                     entry["cover_max_periods"] = day_summary["max_periods"]
         self._persist_assignments()
         return True
+
+    def reassign_assignment(self, date_key: str, index: int) -> tuple[bool, str]:
+        rows = self.assignments.get(date_key)
+        if not rows or not (0 <= index < len(rows)):
+            return False, "assignment not found"
+        entry = rows[index]
+        day_code = self._day_code_from_date(date_key)
+        if not day_code:
+            return False, "invalid date"
+        absent_email = str(entry.get("absent_email") or "").strip().lower()
+        if not absent_email:
+            return False, "absent email missing"
+        teacher_meta = self.schedule_manager.find_teacher_by_email(absent_email)
+        target_cycles = self._cycles_from_label(teacher_meta.get("level_label") if teacher_meta else None)
+        record_subject = str(entry.get("subject") or "").strip()
+        detail = {
+            "period_label": entry.get("period_label"),
+            "period_raw": entry.get("period_raw"),
+            "subject": entry.get("class_subject") or entry.get("subject"),
+            "grade": entry.get("class_grade"),
+            "details": entry.get("class_details"),
+            "time": entry.get("class_time"),
+        }
+        is_friday = day_code == "Fr"
+        hs_max_slots = 5 if is_friday else 7
+        absent_emails = {
+            str(record.get("teacher_email") or "").strip().lower()
+            for record in self.covers_manager.get_absences_for_date(date_key)
+        }
+        current_cover_slug = entry.get("cover_slug")
+        exclude_slugs = {current_cover_slug} if current_cover_slug else set()
+        cover = self._select_cover_for_detail(
+            date_key,
+            day_code,
+            detail,
+            target_cycles,
+            record_subject,
+            absent_email,
+            absent_emails,
+            {},
+            hs_max_slots,
+            exclude_slugs=exclude_slugs,
+        )
+        if not cover:
+            return False, "no alternative cover found"
+        entry["cover_teacher"] = cover["meta"]["name"]
+        entry["cover_email"] = cover["meta"]["email"]
+        entry["cover_slug"] = cover["meta"].get("slug")
+        entry["cover_subject"] = cover["meta"].get("subject")
+        entry["cover_free_periods"] = cover["day"]["free_periods"]
+        entry["cover_scheduled"] = cover["day"]["scheduled_count"]
+        entry["cover_max_periods"] = cover["day"]["max_periods"]
+        entry["cover_assigned_at"] = datetime.utcnow().isoformat()
+        entry["day_label"] = cover["day"]["label"]
+        self._persist_assignments()
+        return True, "reassigned"
 
     def _covers_for_teacher_on_date(self, date_key: str, slug: str) -> int:
         return sum(

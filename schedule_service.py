@@ -466,9 +466,10 @@ class ScheduleManager:
 
     def day_summary_for_teacher(self, slug: str, day_code: str) -> dict:
         data = self.get_schedule_for_teacher(slug)
-        for day in data["schedule"]:
-            if day.get("code") == day_code:
-                return day
+        if data:
+            for day in data["schedule"]:
+                if day.get("code") == day_code:
+                    return day
         meta = self.get_teacher(slug)
         level_label = meta["level_label"] if meta else "General"
         max_periods = self._max_periods_for_level(level_label, day_code)
