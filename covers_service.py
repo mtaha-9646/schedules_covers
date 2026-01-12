@@ -5,8 +5,10 @@ import logging
 import os
 import urllib.error
 import urllib.request
-from datetime import datetime
-from typing import Any, Dict, Optional
+from datetime import date, datetime
+from typing import Any, Callable, Dict, Optional
+
+from models import AbsenceRecord
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COVERS_FILE = os.path.join(BASE_DIR, "covers.json")
@@ -24,9 +26,21 @@ logger = logging.getLogger(__name__)
 
 
 class CoversManager:
-    def __init__(self, storage_path: Optional[str] = None):
+    def __init__(
+        self,
+        storage_path: Optional[str] = None,
+        session_factory: Callable | None = None,
+    ):
         self.storage_path = storage_path or COVERS_FILE
-        self.records: dict[str, list[dict[str, Any]]] = self._load_records()
+        self._session_factory = session_factory
+        self.records: dict[str, list[dict[str, Any]]] = (
+            self._load_records() if not self._session_factory else {}
+        )
+        if self._session_factory:
+            with self._session_factory() as session:
+                has_records = session.query(AbsenceRecord.id).first()
+            if not has_records and os.path.exists(self.storage_path):
+                self._import_json_records()
 
     def _load_records(self) -> dict[str, list[dict[str, Any]]]:
         if not os.path.exists(self.storage_path):
@@ -48,6 +62,11 @@ class CoversManager:
             json.dump(self.records, handle, indent=2)
 
     def clear_records(self) -> None:
+        if self._session_factory:
+            with self._session_factory() as session:
+                session.query(AbsenceRecord).delete()
+                session.commit()
+            return
         self.records = {}
         try:
             self._save_records()
@@ -55,6 +74,8 @@ class CoversManager:
             logger.exception("Failed to clear cover records")
 
     def record_leave(self, payload: Dict[str, Any]) -> dict[str, Any]:
+        if self._session_factory:
+            return self._record_leave_db(payload)
         normalized = self._normalize_payload(payload)
         date_key = normalized["leave_start"]
         day_records = [
@@ -81,6 +102,107 @@ class CoversManager:
         self.records[date_key] = day_records
         self._save_records()
         return normalized
+
+    def _record_leave_db(self, payload: Dict[str, Any]) -> dict[str, Any]:
+        normalized = self._normalize_payload(payload)
+        with self._session_factory() as session:
+            existing = (
+                session.query(AbsenceRecord)
+                .filter(AbsenceRecord.request_id == normalized["request_id"])
+                .one_or_none()
+            )
+            if existing:
+                normalized.setdefault(
+                    "forwarded_at",
+                    existing.forwarded_at.isoformat() if existing.forwarded_at else None,
+                )
+                normalized.setdefault("forward_status", existing.forward_status)
+                normalized.setdefault("forward_response", existing.forward_response)
+            if self._should_forward(normalized):
+                forward_result = self._forward_leave_entry(normalized)
+                normalized["forwarded_at"] = forward_result["timestamp"]
+                normalized["forward_status"] = forward_result["status"]
+                normalized["forward_response"] = forward_result["detail"]
+            else:
+                normalized.setdefault(
+                    "forward_status", existing.forward_status if existing else "pending"
+                )
+            if not normalized.get("forwarded_at"):
+                normalized.setdefault("forwarded_at", None)
+            record = existing or AbsenceRecord(request_id=normalized["request_id"])
+            record.teacher = normalized["teacher"]
+            record.teacher_email = normalized.get("teacher_email") or ""
+            record.teacher_slug = normalized.get("teacher_slug")
+            record.leave_type = normalized.get("leave_type")
+            record.leave_start = date.fromisoformat(normalized["leave_start"])
+            record.leave_end = date.fromisoformat(normalized["leave_end"])
+            record.status = normalized.get("status")
+            record.reason = normalized.get("reason")
+            record.submitted_at = self._parse_datetime(normalized.get("submitted_at"))
+            record.recorded_at = self._parse_datetime(normalized.get("recorded_at"))
+            record.subject = normalized.get("subject")
+            record.level_label = normalized.get("level_label")
+            record.payload = json.dumps(payload)
+            record.forwarded_at = self._parse_datetime(normalized.get("forwarded_at"))
+            record.forward_status = normalized.get("forward_status")
+            record.forward_response = normalized.get("forward_response")
+            session.add(record)
+            session.commit()
+        return normalized
+
+    def _import_json_records(self) -> None:
+        if not os.path.exists(self.storage_path):
+            return
+        try:
+            with open(self.storage_path, encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(data, dict):
+            return
+        records = []
+        for _, entries in data.items():
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                request_id = entry.get("request_id")
+                teacher = entry.get("teacher")
+                teacher_email = entry.get("teacher_email")
+                leave_start = entry.get("leave_start")
+                leave_end = entry.get("leave_end") or leave_start
+                if not (request_id and teacher and teacher_email and leave_start and leave_end):
+                    continue
+                parsed_start = self._parse_date(leave_start)
+                parsed_end = self._parse_date(leave_end)
+                if not parsed_start or not parsed_end:
+                    continue
+                record = AbsenceRecord(
+                    request_id=str(request_id),
+                    teacher=str(teacher),
+                    teacher_email=str(teacher_email),
+                    teacher_slug=entry.get("teacher_slug"),
+                    leave_type=entry.get("leave_type"),
+                    leave_start=parsed_start,
+                    leave_end=parsed_end,
+                    status=entry.get("status"),
+                    reason=entry.get("reason"),
+                    submitted_at=self._parse_datetime(entry.get("submitted_at")),
+                    recorded_at=self._parse_datetime(entry.get("recorded_at")),
+                    subject=entry.get("subject"),
+                    level_label=entry.get("level_label"),
+                    payload=json.dumps(entry.get("payload") or entry),
+                    forwarded_at=self._parse_datetime(entry.get("forwarded_at")),
+                    forward_status=entry.get("forward_status"),
+                    forward_response=entry.get("forward_response"),
+                )
+                records.append(record)
+        if not records:
+            return
+        with self._session_factory() as session:
+            session.bulk_save_objects(records)
+            session.commit()
 
     def _normalize_payload(self, payload: Dict[str, Any]) -> dict[str, Any]:
         if "request_id" not in payload or "teacher" not in payload:
@@ -126,7 +248,22 @@ class CoversManager:
 
     def get_absences_for_date(self, date_key: Optional[str] = None) -> list[dict[str, Any]]:
         normalized_date = self._normalize_date(date_key) if date_key else datetime.utcnow().date().isoformat()
+        if self._session_factory:
+            return self._get_absences_for_date_db(normalized_date)
         return self.records.get(normalized_date, [])
+
+    def _get_absences_for_date_db(self, normalized_date: str) -> list[dict[str, Any]]:
+        try:
+            target_date = date.fromisoformat(normalized_date)
+        except ValueError:
+            target_date = datetime.utcnow().date()
+        with self._session_factory() as session:
+            records = (
+                session.query(AbsenceRecord)
+                .filter(AbsenceRecord.leave_start == target_date)
+                .all()
+            )
+        return [self._record_to_dict(record) for record in records]
 
     def _normalize_payload_dates(self, payload: Dict[str, Any]) -> tuple[str, str, str]:
         leave_start = self._normalize_date(payload.get("leave_start") or payload.get("leave_date"))
@@ -198,7 +335,55 @@ class CoversManager:
         return {"status": "failed", "detail": detail, "timestamp": timestamp}
 
     def get_all_records(self) -> dict[str, list[dict[str, Any]]]:
-        return self.records.copy()
+        if not self._session_factory:
+            return self.records.copy()
+        with self._session_factory() as session:
+            records = session.query(AbsenceRecord).all()
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for record in records:
+            key = record.leave_start.isoformat()
+            grouped.setdefault(key, []).append(self._record_to_dict(record))
+        return grouped
+
+    @staticmethod
+    def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_date(value: Optional[str]) -> Optional[date]:
+        if not value:
+            return None
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _record_to_dict(record: AbsenceRecord) -> dict[str, Any]:
+        return {
+            "request_id": record.request_id,
+            "teacher": record.teacher,
+            "teacher_email": record.teacher_email,
+            "teacher_slug": record.teacher_slug,
+            "leave_type": record.leave_type,
+            "leave_start": record.leave_start.isoformat() if record.leave_start else None,
+            "leave_end": record.leave_end.isoformat() if record.leave_end else None,
+            "status": record.status,
+            "reason": record.reason,
+            "submitted_at": record.submitted_at.isoformat() if record.submitted_at else None,
+            "recorded_at": record.recorded_at.isoformat() if record.recorded_at else None,
+            "subject": record.subject,
+            "level_label": record.level_label,
+            "payload": record.payload,
+            "forwarded_at": record.forwarded_at.isoformat() if record.forwarded_at else None,
+            "forward_status": record.forward_status,
+            "forward_response": record.forward_response,
+        }
 
     def can_request_absences(self) -> bool:
         return bool(ABSENCES_REQUEST_URL)

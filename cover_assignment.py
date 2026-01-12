@@ -5,10 +5,11 @@ import logging
 import os
 import tempfile
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set
 
 from assignment_settings import AssignmentSettingsManager
 from covers_service import CoversManager
+from models import CoverAssignment, ExcludedTeacher
 from schedule_service import ScheduleManager
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -44,16 +45,30 @@ class CoverAssignmentManager:
         covers_manager: CoversManager,
         settings: AssignmentSettingsManager,
         storage_path: Optional[str] = None,
+        session_factory: Callable | None = None,
     ):
         self.schedule_manager = schedule_manager
         self.covers_manager = covers_manager
         self.settings = settings
         self.storage_path = storage_path or ASSIGNMENTS_FILE
+        self._session_factory = session_factory
         self.assignments: dict[str, list[dict[str, Any]]] = self._load_assignments()
         self.schedule_manager.rebuild_cover_assignments(self.assignments)
         self._excluded_slugs: set[str] = self._load_exclusions()
 
     def _load_assignments(self) -> dict[str, list[dict[str, Any]]]:
+        if self._session_factory:
+            with self._session_factory() as session:
+                records = session.query(CoverAssignment).all()
+            if not records and os.path.exists(self.storage_path):
+                self._import_json_assignments()
+                with self._session_factory() as session:
+                    records = session.query(CoverAssignment).all()
+            assignments: dict[str, list[dict[str, Any]]] = {}
+            for record in records:
+                date_key = record.date.isoformat()
+                assignments.setdefault(date_key, []).append(self._assignment_from_record(record))
+            return assignments
         if not os.path.exists(self.storage_path):
             return {}
         try:
@@ -66,6 +81,14 @@ class CoverAssignmentManager:
         return {}
 
     def _load_exclusions(self) -> set[str]:
+        if self._session_factory:
+            with self._session_factory() as session:
+                records = session.query(ExcludedTeacher).all()
+            if not records and os.path.exists(EXCLUDED_TEACHERS_FILE):
+                self._import_json_exclusions()
+                with self._session_factory() as session:
+                    records = session.query(ExcludedTeacher).all()
+            return {record.slug for record in records if record.slug}
         if not os.path.exists(EXCLUDED_TEACHERS_FILE):
             return set()
         try:
@@ -78,6 +101,8 @@ class CoverAssignmentManager:
         return set()
 
     def _save_assignments(self) -> None:
+        if self._session_factory:
+            return
         directory = os.path.dirname(self.storage_path)
         if directory and not os.path.exists(directory):
             os.makedirs(directory, exist_ok=True)
@@ -239,8 +264,8 @@ class CoverAssignmentManager:
                 bool(normalized_target_subject)
                 and teacher_subject_normalized == normalized_target_subject
             )
-            cycle_overlap = bool(target_cycles & teacher_cycles)
-            tier = self._priority_tier(match_subject, cycle_overlap)
+            cycle_match = self._cycle_match(target_cycles, teacher_cycles)
+            tier = self._priority_tier(match_subject, cycle_match)
             candidates.append(
                 {
                     "meta": teacher,
@@ -257,14 +282,19 @@ class CoverAssignmentManager:
         candidates.sort(key=lambda candidate: candidate["priority"])
         return candidates[0]
 
-    def _priority_tier(self, match_subject: bool, cycle_overlap: bool) -> int:
-        if match_subject and cycle_overlap:
+    def _priority_tier(self, match_subject: bool, cycle_match: bool) -> int:
+        if match_subject and cycle_match:
             return 1
         if match_subject:
             return 2
-        if cycle_overlap:
+        if cycle_match:
             return 3
         return 4
+
+    def _cycle_match(self, target_cycles: set[str], teacher_cycles: set[str]) -> bool:
+        target_priority = target_cycles & {CYCLE_HIGH, CYCLE_MIDDLE}
+        teacher_priority = teacher_cycles & {CYCLE_HIGH, CYCLE_MIDDLE}
+        return bool(target_priority & teacher_priority)
 
     def _max_covers_for_teacher(
         self,
@@ -372,6 +402,9 @@ class CoverAssignmentManager:
             "cover_assigned_at": datetime.utcnow().isoformat(),
             "day_label": cover["day"]["label"],
         }
+        assignment_id = self._insert_assignment_record(date_key, assignment)
+        if assignment_id:
+            assignment["id"] = assignment_id
         self.assignments.setdefault(date_key, []).append(assignment)
         self._persist_assignments()
 
@@ -420,6 +453,7 @@ class CoverAssignmentManager:
                     entry["cover_free_periods"] = day_summary["free_periods"]
                     entry["cover_scheduled"] = day_summary["scheduled_count"]
                     entry["cover_max_periods"] = day_summary["max_periods"]
+        self._update_assignment_record(entry)
         self._persist_assignments()
         return True
 
@@ -476,8 +510,199 @@ class CoverAssignmentManager:
         entry["cover_max_periods"] = cover["day"]["max_periods"]
         entry["cover_assigned_at"] = datetime.utcnow().isoformat()
         entry["day_label"] = cover["day"]["label"]
+        self._update_assignment_record(entry)
         self._persist_assignments()
         return True, "reassigned"
+
+    def _insert_assignment_record(self, date_key: str, assignment: dict[str, Any]) -> Optional[int]:
+        if not self._session_factory:
+            return None
+        try:
+            assignment_date = date.fromisoformat(date_key)
+        except ValueError:
+            return None
+        with self._session_factory() as session:
+            record = CoverAssignment(
+                date=assignment_date,
+                request_id=assignment.get("request_id"),
+                slot_key=assignment.get("slot_key") or "",
+                absent_teacher=assignment.get("absent_teacher") or "",
+                absent_email=assignment.get("absent_email") or "",
+                cover_teacher=assignment.get("cover_teacher") or "",
+                cover_email=assignment.get("cover_email") or "",
+                cover_slug=assignment.get("cover_slug"),
+                subject=assignment.get("subject"),
+                class_subject=assignment.get("class_subject"),
+                class_grade=assignment.get("class_grade"),
+                class_details=assignment.get("class_details"),
+                period_label=assignment.get("period_label"),
+                period_raw=assignment.get("period_raw"),
+                class_time=assignment.get("class_time"),
+                cover_subject=assignment.get("cover_subject"),
+                status=assignment.get("status"),
+                leave_type=assignment.get("leave_type"),
+                leave_start=self._parse_date(assignment.get("leave_start")),
+                leave_end=self._parse_date(assignment.get("leave_end")),
+                submitted_at=self._parse_datetime(assignment.get("submitted_at")),
+                cover_free_periods=self._as_int(assignment.get("cover_free_periods")),
+                cover_scheduled=self._as_int(assignment.get("cover_scheduled")),
+                cover_max_periods=self._as_int(assignment.get("cover_max_periods")),
+                cover_assigned_at=self._parse_datetime(assignment.get("cover_assigned_at")),
+                day_label=assignment.get("day_label"),
+            )
+            session.add(record)
+            session.commit()
+            return record.id
+
+    def _update_assignment_record(self, assignment: dict[str, Any]) -> None:
+        if not self._session_factory:
+            return
+        record_id = assignment.get("id")
+        if not record_id:
+            return
+        with self._session_factory() as session:
+            record = session.get(CoverAssignment, record_id)
+            if not record:
+                return
+            record.cover_teacher = assignment.get("cover_teacher") or record.cover_teacher
+            record.cover_email = assignment.get("cover_email") or record.cover_email
+            record.cover_slug = assignment.get("cover_slug")
+            record.cover_subject = assignment.get("cover_subject")
+            record.status = assignment.get("status")
+            record.class_subject = assignment.get("class_subject")
+            record.class_grade = assignment.get("class_grade")
+            record.class_details = assignment.get("class_details")
+            record.class_time = assignment.get("class_time")
+            record.period_label = assignment.get("period_label")
+            record.period_raw = assignment.get("period_raw")
+            record.cover_free_periods = self._as_int(assignment.get("cover_free_periods"))
+            record.cover_scheduled = self._as_int(assignment.get("cover_scheduled"))
+            record.cover_max_periods = self._as_int(assignment.get("cover_max_periods"))
+            record.cover_assigned_at = self._parse_datetime(assignment.get("cover_assigned_at"))
+            record.day_label = assignment.get("day_label")
+            session.commit()
+
+    @staticmethod
+    def _parse_date(value: Optional[str]) -> Optional[date]:
+        if not value:
+            return None
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _assignment_from_record(record: CoverAssignment) -> dict[str, Any]:
+        return {
+            "id": record.id,
+            "slot_key": record.slot_key,
+            "request_id": record.request_id,
+            "date": record.date.isoformat() if record.date else "",
+            "absent_teacher": record.absent_teacher,
+            "absent_email": record.absent_email,
+            "cover_teacher": record.cover_teacher,
+            "cover_email": record.cover_email,
+            "cover_slug": record.cover_slug,
+            "subject": record.subject,
+            "class_subject": record.class_subject,
+            "class_grade": record.class_grade,
+            "class_details": record.class_details,
+            "period_label": record.period_label,
+            "period_raw": record.period_raw,
+            "class_time": record.class_time,
+            "cover_subject": record.cover_subject,
+            "status": record.status,
+            "leave_type": record.leave_type,
+            "leave_start": record.leave_start.isoformat() if record.leave_start else None,
+            "leave_end": record.leave_end.isoformat() if record.leave_end else None,
+            "submitted_at": record.submitted_at.isoformat() if record.submitted_at else None,
+            "cover_free_periods": record.cover_free_periods,
+            "cover_scheduled": record.cover_scheduled,
+            "cover_max_periods": record.cover_max_periods,
+            "cover_assigned_at": record.cover_assigned_at.isoformat() if record.cover_assigned_at else None,
+            "day_label": record.day_label,
+        }
+
+    def _import_json_assignments(self) -> None:
+        if not os.path.exists(self.storage_path):
+            return
+        try:
+            with open(self.storage_path, encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(data, dict):
+            return
+        records = []
+        for date_key, entries in data.items():
+            if not isinstance(entries, list):
+                continue
+            assignment_date = self._parse_date(date_key)
+            if not assignment_date:
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                record = CoverAssignment(
+                    date=assignment_date,
+                    request_id=entry.get("request_id"),
+                    slot_key=entry.get("slot_key") or "",
+                    absent_teacher=entry.get("absent_teacher") or "",
+                    absent_email=entry.get("absent_email") or "",
+                    cover_teacher=entry.get("cover_teacher") or "",
+                    cover_email=entry.get("cover_email") or "",
+                    cover_slug=entry.get("cover_slug"),
+                    subject=entry.get("subject"),
+                    class_subject=entry.get("class_subject"),
+                    class_grade=entry.get("class_grade"),
+                    class_details=entry.get("class_details"),
+                    period_label=entry.get("period_label"),
+                    period_raw=entry.get("period_raw"),
+                    class_time=entry.get("class_time"),
+                    cover_subject=entry.get("cover_subject"),
+                    status=entry.get("status"),
+                    leave_type=entry.get("leave_type"),
+                    leave_start=self._parse_date(entry.get("leave_start")),
+                    leave_end=self._parse_date(entry.get("leave_end")),
+                    submitted_at=self._parse_datetime(entry.get("submitted_at")),
+                    cover_free_periods=self._as_int(entry.get("cover_free_periods")),
+                    cover_scheduled=self._as_int(entry.get("cover_scheduled")),
+                    cover_max_periods=self._as_int(entry.get("cover_max_periods")),
+                    cover_assigned_at=self._parse_datetime(entry.get("cover_assigned_at")),
+                    day_label=entry.get("day_label"),
+                )
+                records.append(record)
+        if not records:
+            return
+        with self._session_factory() as session:
+            session.bulk_save_objects(records)
+            session.commit()
+
+    def _import_json_exclusions(self) -> None:
+        if not os.path.exists(EXCLUDED_TEACHERS_FILE):
+            return
+        try:
+            with open(EXCLUDED_TEACHERS_FILE, encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(data, list):
+            return
+        records = [ExcludedTeacher(slug=str(item).strip()) for item in data if item]
+        if not records:
+            return
+        with self._session_factory() as session:
+            session.bulk_save_objects(records)
+            session.commit()
 
     def _covers_for_teacher_on_date(self, date_key: str, slug: str) -> int:
         return sum(
@@ -526,6 +751,10 @@ class CoverAssignmentManager:
 
     def reset_assignments(self) -> None:
         self.assignments = {}
+        if self._session_factory:
+            with self._session_factory() as session:
+                session.query(CoverAssignment).delete()
+                session.commit()
         self._persist_assignments()
 
     def excluded_teacher_slugs(self) -> set[str]:
@@ -537,6 +766,12 @@ class CoverAssignmentManager:
         self._save_exclusions()
 
     def _save_exclusions(self) -> None:
+        if self._session_factory:
+            with self._session_factory() as session:
+                session.query(ExcludedTeacher).delete()
+                session.add_all([ExcludedTeacher(slug=slug) for slug in self._excluded_slugs])
+                session.commit()
+            return
         directory = os.path.dirname(EXCLUDED_TEACHERS_FILE)
         if directory and not os.path.exists(directory):
             os.makedirs(directory, exist_ok=True)

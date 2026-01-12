@@ -12,6 +12,7 @@ from typing import Any
 from assignment_settings import AssignmentSettingsManager
 from cover_assignment import CoverAssignmentManager
 from covers_service import CoversManager
+from db import get_session, init_db
 from schedule_service import (
     DAY_LABELS,
     DAY_ORDER,
@@ -27,10 +28,17 @@ DEPLOY_WEBHOOK_SECRET = os.getenv("DEPLOY_WEBHOOK_SECRET")
 DEPLOY_SCRIPT = os.path.join(BASE_DIR, "deploy.sh")
 
 app = Flask(__name__)
-manager = ScheduleManager(DATA_FILE)
-covers_manager = CoversManager()
-settings_manager = AssignmentSettingsManager()
-assignment_manager = CoverAssignmentManager(manager, covers_manager, settings_manager)
+init_db()
+session_factory = get_session
+manager = ScheduleManager(DATA_FILE, session_factory=session_factory)
+covers_manager = CoversManager(session_factory=session_factory)
+settings_manager = AssignmentSettingsManager(session_factory=session_factory)
+assignment_manager = CoverAssignmentManager(
+    manager,
+    covers_manager,
+    settings_manager,
+    session_factory=session_factory,
+)
 assignment_manager.sync_existing_records()
 
 
@@ -83,6 +91,7 @@ def _parse_date(value: str | None) -> date | None:
     except ValueError:
         return None
 
+
 @app.route("/")
 def index():
     coverage_counts = Counter()
@@ -117,8 +126,9 @@ def index():
 
 @app.route("/refresh-schedules")
 def refresh_schedules():
+    count = manager.import_from_excel()
     manager.reload_data()
-    app.logger.info("Schedule data reloaded from %s", DATA_FILE)
+    app.logger.info("Schedule data imported from %s (%d rows)", DATA_FILE, count)
     return redirect(url_for("index"))
 
 

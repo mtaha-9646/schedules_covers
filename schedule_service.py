@@ -1,9 +1,11 @@
 from __future__ import annotations
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
+
+from models import ScheduleEntry, TeacherManifest
 
 DAY_ORDER = ["Mo", "Tu", "We", "Th", "Fr"]
 DAY_LABELS = {
@@ -57,9 +59,13 @@ def slugify(text: str) -> str:
 
 
 class ScheduleManager:
-    def __init__(self, excel_path: str):
+    def __init__(self, excel_path: str, session_factory: Callable | None = None):
         self.excel_path = excel_path
+        self._session_factory = session_factory
         self._df = self._load_schedule()
+        if self._df.empty and self._session_factory:
+            self.import_from_excel()
+            self._df = self._load_schedule()
         self._dynamic_rows = pd.DataFrame(columns=self._df.columns)
         self._course_count_column = self._select_course_count_column()
         self._manifest = self._load_teacher_manifest()
@@ -151,6 +157,49 @@ class ScheduleManager:
         return None
 
     def _load_schedule(self) -> pd.DataFrame:
+        if not self._session_factory:
+            return self._load_schedule_from_excel()
+        with self._session_factory() as session:
+            rows = session.query(ScheduleEntry).all()
+        if not rows:
+            return pd.DataFrame(
+                columns=[
+                    "Teacher",
+                    "Day",
+                    "DayCode",
+                    "Period",
+                    "PeriodRaw",
+                    "PeriodGroup",
+                    "PeriodRank",
+                    "GradeDetected",
+                    "Details",
+                    "DetailsDisplay",
+                    "email",
+                    "subject",
+                    "course_count",
+                ]
+            )
+        data = [
+            {
+                "Teacher": row.teacher,
+                "Day": row.day,
+                "DayCode": row.day_code,
+                "Period": row.period,
+                "PeriodRaw": row.period_raw,
+                "PeriodGroup": row.period_group,
+                "PeriodRank": row.period_rank,
+                "GradeDetected": row.grade_detected,
+                "Details": row.details,
+                "DetailsDisplay": row.details_display,
+                "email": row.email,
+                "subject": row.subject,
+                "course_count": row.course_count,
+            }
+            for row in rows
+        ]
+        return pd.DataFrame(data)
+
+    def _load_schedule_from_excel(self) -> pd.DataFrame:
         df = pd.read_excel(self.excel_path)
         df = df.dropna(subset=["Teacher"])
         df["DayCode"] = df["Day"].str.strip().fillna("")
@@ -161,6 +210,49 @@ class ScheduleManager:
         df["GradeDetected"] = df["Details"].fillna("").apply(self._detect_grade)
         df["DetailsDisplay"] = df["Details"].fillna("General Duty")
         return df
+
+    def import_from_excel(self) -> int:
+        if not self._session_factory:
+            return 0
+        df = self._load_schedule_from_excel()
+        manifest = self._load_teacher_manifest_from_excel()
+        entries = []
+        for _, row in df.iterrows():
+            entries.append(
+                ScheduleEntry(
+                    teacher=str(row.get("Teacher") or "").strip(),
+                    day=str(row.get("Day") or "").strip(),
+                    day_code=str(row.get("DayCode") or "").strip(),
+                    period=str(row.get("Period") or "").strip(),
+                    period_raw=str(row.get("PeriodRaw") or "").strip(),
+                    period_group=str(row.get("PeriodGroup") or "").strip(),
+                    period_rank=self._as_int(row.get("PeriodRank")),
+                    grade_detected=self._as_int(row.get("GradeDetected")),
+                    details=str(row.get("Details") or "").strip(),
+                    details_display=str(row.get("DetailsDisplay") or "").strip(),
+                    email=str(row.get("email") or "").strip(),
+                    subject=str(row.get("subject") or "").strip(),
+                    course_count=self._as_int(row.get("course_count")),
+                )
+            )
+        with self._session_factory() as session:
+            session.query(ScheduleEntry).delete()
+            session.query(TeacherManifest).delete()
+            if entries:
+                session.bulk_save_objects(entries)
+            if manifest:
+                session.bulk_save_objects(
+                    [
+                        TeacherManifest(
+                            slug=slug,
+                            name=data.get("name") or slug,
+                            email=data.get("email"),
+                        )
+                        for slug, data in manifest.items()
+                    ]
+                )
+            session.commit()
+        return len(entries)
 
     def _select_course_count_column(self) -> str | None:
         candidates = {"course_count", "course count", "number of course", "number_of_course"}
@@ -340,6 +432,15 @@ class ScheduleManager:
         return fallback or "General Duty"
 
     def _load_teacher_manifest(self) -> dict[str, dict] | None:
+        if not self._session_factory:
+            return self._load_teacher_manifest_from_excel()
+        with self._session_factory() as session:
+            records = session.query(TeacherManifest).all()
+        if not records:
+            return None
+        return {record.slug: {"name": record.name, "email": record.email} for record in records}
+
+    def _load_teacher_manifest_from_excel(self) -> dict[str, dict] | None:
         try:
             workbook = pd.ExcelFile(self.excel_path)
         except (ValueError, FileNotFoundError):
