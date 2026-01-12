@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow space-y-4">
+    <div>
+      <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Simulation</p>
+      <h1 class="text-2xl font-semibold text-slate-900">Assignment test runner</h1>
+      <p class="text-sm text-slate-500">Generate temporary absences and simulate cover selection without touching live data.</p>
+    </div>
+    <form method="post" class="grid gap-4 md:grid-cols-4">
+      <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+        Absence count
+        <input
+          type="number"
+          name="count"
+          min="1"
+          value="{{ count }}"
+          class="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
+        />
+      </label>
+      <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+        Start date
+        <input
+          type="date"
+          name="start_date"
+          value="{{ start_date }}"
+          class="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
+        />
+      </label>
+      <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+        End date
+        <input
+          type="date"
+          name="end_date"
+          value="{{ end_date }}"
+          class="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
+        />
+      </label>
+      <div class="flex items-end">
+        <button type="submit" class="w-full rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white hover:bg-slate-800">
+          Run simulation
+        </button>
+      </div>
+    </form>
+    {% if status %}
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      {% if status == "success" %}
+        {{ message }} Generated {{ total_assignments }} assignment(s), {{ unassigned_count }} absence(s) without covers.
+      {% else %}
+        {{ message }}
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  {% if records %}
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Test absences</p>
+        <h2 class="text-xl font-semibold text-slate-900">{{ records|length }} generated absence(s)</h2>
+      </div>
+    </div>
+    <div class="overflow-auto rounded-2xl border border-slate-100">
+      <table class="min-w-full text-xs text-slate-600">
+        <thead class="bg-slate-50 text-[11px] uppercase tracking-[0.3em] text-slate-400">
+          <tr>
+            <th class="px-3 py-2 text-left">Teacher</th>
+            <th class="px-3 py-2 text-left">Dates</th>
+            <th class="px-3 py-2 text-left">Assignments</th>
+            <th class="px-3 py-2 text-left">Request</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in records %}
+          <tr class="border-t border-slate-100">
+            <td class="px-3 py-2">
+              <p class="font-semibold text-slate-900">{{ record.teacher }}</p>
+              <p class="text-[11px] text-slate-500">{{ record.teacher_email }}</p>
+            </td>
+            <td class="px-3 py-2">{{ record.leave_start }} → {{ record.leave_end }}</td>
+            <td class="px-3 py-2">{{ record.assigned_count }}</td>
+            <td class="px-3 py-2 text-[11px] text-slate-400">{{ record.request_id }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if assignments %}
+  <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Simulated assignments</p>
+        <h2 class="text-xl font-semibold text-slate-900">{{ assignments|length }} assignment(s)</h2>
+      </div>
+    </div>
+    <div class="overflow-auto rounded-2xl border border-slate-100">
+      <table class="min-w-full text-xs text-slate-600">
+        <thead class="bg-slate-50 text-[11px] uppercase tracking-[0.3em] text-slate-400">
+          <tr>
+            <th class="px-3 py-2 text-left">Date</th>
+            <th class="px-3 py-2 text-left">Absent</th>
+            <th class="px-3 py-2 text-left">Class</th>
+            <th class="px-3 py-2 text-left">Cover</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in assignments %}
+          <tr class="border-t border-slate-100">
+            <td class="px-3 py-2">{{ entry.date }}</td>
+            <td class="px-3 py-2">
+              <p class="font-semibold text-slate-900">{{ entry.absent_teacher }}</p>
+              <p class="text-[11px] text-slate-500">{{ entry.absent_email }}</p>
+            </td>
+            <td class="px-3 py-2">
+              <p class="font-semibold text-slate-900">{{ entry.class_subject or "General" }}</p>
+              <p class="text-[11px] text-slate-400">{{ entry.period_label or entry.period_raw }}</p>
+            </td>
+            <td class="px-3 py-2">
+              <p class="font-semibold text-slate-900">{{ entry.cover_teacher }}</p>
+              <p class="text-[11px] text-slate-500">{{ entry.cover_subject or "General" }}</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

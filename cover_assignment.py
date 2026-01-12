@@ -220,6 +220,7 @@ class CoverAssignmentManager:
         session_covers_log: dict[str, int],
         hs_max_slots: int,
         exclude_slugs: Optional[Set[str]] = None,
+        assignment_counts: Optional[dict[str, dict[str, int]]] = None,
     ) -> Optional[dict[str, Any]]:
         period_label_raw = detail.get("period_label") or detail.get("period_raw") or ""
         period_lookup = self.schedule_manager.normalize_period(period_label_raw) or period_label_raw
@@ -249,7 +250,10 @@ class CoverAssignmentManager:
             if day_summary["free_periods"] <= 0:
                 continue
             teacher_cycles = self._cycles_from_label(teacher.get("level_label"))
-            database_covers = self._covers_for_teacher_on_date(date_key, slug)
+            if assignment_counts is not None:
+                database_covers = assignment_counts.get(date_key, {}).get(slug, 0)
+            else:
+                database_covers = self._covers_for_teacher_on_date(date_key, slug)
             runtime_covers = session_covers_log.get(slug, 0)
             total_covers = database_covers + runtime_covers
             max_covers = self._max_covers_for_teacher(day_summary, day_code, teacher_cycles)
@@ -281,6 +285,134 @@ class CoverAssignmentManager:
             return None
         candidates.sort(key=lambda candidate: candidate["priority"])
         return candidates[0]
+
+    def simulate_assignments(self, records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+        assignments: dict[str, list[dict[str, Any]]] = {}
+        assignment_counts: dict[str, dict[str, int]] = {}
+        absent_by_date: dict[str, set[str]] = {}
+        for record in records:
+            email = str(record.get("teacher_email") or "").strip().lower()
+            if not email:
+                continue
+            try:
+                start_date = date.fromisoformat(record["leave_start"])
+                end_date = date.fromisoformat(record["leave_end"])
+            except Exception:
+                continue
+            current = start_date
+            while current <= end_date:
+                if current.weekday() < 5:
+                    key = current.isoformat()
+                    absent_by_date.setdefault(key, set()).add(email)
+                current += timedelta(days=1)
+
+        for record in records:
+            absent_email = record.get("teacher_email")
+            if not absent_email:
+                continue
+            status = str(record.get("status") or "").strip().lower()
+            if status in NON_ASSIGNABLE_STATUSES:
+                continue
+            absent_slug = record.get("teacher_slug")
+            if not absent_slug:
+                continue
+            try:
+                start_date = date.fromisoformat(record["leave_start"])
+                end_date = date.fromisoformat(record["leave_end"])
+            except Exception:
+                continue
+            target_cycles = self._cycles_from_label(record.get("level_label"))
+            record_subject = str(record.get("subject") or "").strip()
+            absent_email_normalized = str(absent_email).strip().lower()
+            current = start_date
+            while current <= end_date:
+                weekday = current.weekday()
+                if weekday >= 5:
+                    current += timedelta(days=1)
+                    continue
+                day_code = DAY_CODE_BY_WEEKDAY.get(weekday)
+                if not day_code:
+                    current += timedelta(days=1)
+                    continue
+                date_key = current.isoformat()
+                details = self._details_for_teacher_on_day(absent_slug, day_code)
+                if not details:
+                    current += timedelta(days=1)
+                    continue
+                is_friday = day_code == "Fr"
+                hs_max_slots = 5 if is_friday else 7
+                absent_emails = absent_by_date.get(date_key, set())
+                session_covers_log: dict[str, int] = {}
+                for detail in details:
+                    slot_key = self._slot_key_for_detail(detail)
+                    request_id = record.get("request_id")
+                    if self._assignment_exists_in(assignments, date_key, request_id, slot_key):
+                        continue
+                    cover = self._select_cover_for_detail(
+                        date_key,
+                        day_code,
+                        detail,
+                        target_cycles,
+                        record_subject,
+                        absent_email_normalized,
+                        absent_emails,
+                        session_covers_log,
+                        hs_max_slots,
+                        assignment_counts=assignment_counts,
+                    )
+                    if not cover:
+                        continue
+                    slug = cover["meta"].get("slug")
+                    if slug:
+                        session_covers_log[slug] = session_covers_log.get(slug, 0) + 1
+                        assignment_counts.setdefault(date_key, {})
+                        assignment_counts[date_key][slug] = assignment_counts[date_key].get(slug, 0) + 1
+                    assignment = {
+                        "slot_key": slot_key,
+                        "request_id": request_id,
+                        "date": date_key,
+                        "absent_teacher": record.get("teacher"),
+                        "absent_email": record.get("teacher_email"),
+                        "cover_teacher": cover["meta"]["name"],
+                        "cover_email": cover["meta"]["email"],
+                        "cover_slug": cover["meta"].get("slug"),
+                        "subject": record.get("subject"),
+                        "class_subject": detail.get("subject") or record.get("subject") or "General",
+                        "class_grade": detail.get("grade"),
+                        "class_details": detail.get("details"),
+                        "period_label": detail.get("period_label"),
+                        "period_raw": detail.get("period_raw"),
+                        "class_time": detail.get("time"),
+                        "cover_subject": cover["meta"].get("subject"),
+                        "status": record.get("status"),
+                        "leave_type": record.get("leave_type"),
+                        "leave_start": record.get("leave_start"),
+                        "leave_end": record.get("leave_end"),
+                        "submitted_at": record.get("submitted_at"),
+                        "cover_free_periods": cover["day"]["free_periods"],
+                        "cover_scheduled": cover["day"]["scheduled_count"],
+                        "cover_max_periods": cover["day"]["max_periods"],
+                        "cover_assigned_at": datetime.utcnow().isoformat(),
+                        "day_label": cover["day"]["label"],
+                        "simulated": True,
+                    }
+                    assignments.setdefault(date_key, []).append(assignment)
+                current += timedelta(days=1)
+        return assignments
+
+    @staticmethod
+    def _assignment_exists_in(
+        assignments: dict[str, list[dict[str, Any]]],
+        date_key: str,
+        request_id: Optional[str],
+        slot_key: str,
+    ) -> bool:
+        if not request_id or not slot_key:
+            return False
+        for entry in assignments.get(date_key, []):
+            if entry.get("request_id") == request_id and entry.get("slot_key") == slot_key:
+                return True
+        return False
 
     def _priority_tier(self, match_subject: bool, cycle_match: bool) -> int:
         if match_subject and cycle_match:

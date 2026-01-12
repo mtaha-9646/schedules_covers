@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import os
+import random
 import subprocess
 import uuid
 
@@ -90,6 +91,49 @@ def _parse_date(value: str | None) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _build_random_absences(
+    count: int,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    if count <= 0:
+        return []
+    teachers = [
+        teacher
+        for teacher in manager.teacher_cards
+        if teacher.get("email") and (teacher.get("day_count") or 0) > 0
+    ]
+    if not teachers:
+        return []
+    date_choices = [
+        start_date + timedelta(days=offset)
+        for offset in range((end_date - start_date).days + 1)
+        if (start_date + timedelta(days=offset)).weekday() < 5
+    ]
+    if not date_choices:
+        return []
+    records: list[dict[str, Any]] = []
+    for _ in range(count):
+        teacher = random.choice(teachers)
+        chosen_date = random.choice(date_choices)
+        records.append(
+            {
+                "request_id": f"test-{uuid.uuid4().hex}",
+                "teacher": teacher["name"],
+                "teacher_email": teacher["email"],
+                "teacher_slug": teacher["slug"],
+                "subject": teacher.get("subject"),
+                "level_label": teacher.get("level_label"),
+                "leave_type": "test",
+                "leave_start": chosen_date.isoformat(),
+                "leave_end": chosen_date.isoformat(),
+                "status": "approved",
+                "submitted_at": datetime.utcnow().isoformat(),
+            }
+        )
+    return records
 @app.route("/")
 def index():
     coverage_counts = Counter()
@@ -522,6 +566,62 @@ def availability_page():
         "availability.html",
         days=DAY_LABELS,
         period_options=ORDERED_PERIODS,
+    )
+
+
+@app.route("/testing/assignments", methods=["GET", "POST"])
+def testing_assignments():
+    today = date.today()
+    form_count = request.form.get("count") if request.method == "POST" else None
+    count = _to_int(form_count) if form_count else 10
+    start_value = request.form.get("start_date") if request.method == "POST" else None
+    end_value = request.form.get("end_date") if request.method == "POST" else None
+    start_date = _parse_date(start_value) or today
+    if request.method == "POST" and not end_value:
+        end_date = start_date
+    else:
+        end_date = _parse_date(end_value) or (today + timedelta(days=7))
+    status = None
+    message = None
+    records: list[dict[str, Any]] = []
+    assignments: dict[str, list[dict[str, Any]]] = {}
+    if request.method == "POST":
+        count = max(1, count)
+        if end_date < start_date:
+            status = "failed"
+            message = "End date must be on or after the start date."
+        else:
+            records = _build_random_absences(count, start_date, end_date)
+            if not records:
+                status = "failed"
+                message = "No eligible teachers or dates found for the test run."
+            else:
+                assignments = assignment_manager.simulate_assignments(records)
+                status = "success"
+                message = "Test assignments generated."
+    flattened = []
+    for date_key in sorted(assignments.keys()):
+        for entry in assignments[date_key]:
+            flattened.append(entry)
+    per_request: dict[str, int] = {}
+    for entry in flattened:
+        request_id = entry.get("request_id")
+        if request_id:
+            per_request[request_id] = per_request.get(request_id, 0) + 1
+    for record in records:
+        record["assigned_count"] = per_request.get(record.get("request_id"), 0)
+    unassigned_count = sum(1 for record in records if record.get("assigned_count") == 0)
+    return render_template(
+        "testing_assignments.html",
+        status=status,
+        message=message,
+        records=records,
+        assignments=flattened,
+        total_assignments=len(flattened),
+        unassigned_count=unassigned_count,
+        count=count,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
     )
 
 
