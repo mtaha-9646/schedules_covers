@@ -312,7 +312,7 @@ def availability():
     day_code = manager.normalize_day(day_raw)
     if not day_code:
         return jsonify({"error": f"Could not parse day '{day_raw}'"}), 400
-    result = manager.available_for_slot(day_code, period_label)
+    result = manager.available_for_slot_api(day_code, period_label)
     return jsonify(result)
 
 
@@ -346,7 +346,7 @@ def check_availability():
             ),
             400,
         )
-    available = manager.teachers_available(derived_day_code, period_label)
+    available = manager.teachers_available_for_api(derived_day_code, period_label)
     return jsonify(
         {
             "date": requested_date.isoformat(),

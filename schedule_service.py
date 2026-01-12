@@ -861,6 +861,52 @@ class ScheduleManager:
             "day": DAY_LABELS.get(day_code, day_code),
         }
 
+    def available_for_slot_api(self, day_code: str, period_label: str) -> dict:
+        available = self.teachers_available_for_api(day_code, period_label)
+        occupied = self.teachers_occupied(day_code, period_label)
+        return {
+            "available": available,
+            "occupied": occupied,
+            "period": period_label,
+            "day": DAY_LABELS.get(day_code, day_code),
+        }
+
+    def teachers_available_for_api(self, day_code: str, period_label: str) -> list[dict]:
+        available = self.teachers_available(day_code, period_label)
+        period_group = self._normalize_period(period_label) or period_label
+        if period_group not in ORDERED_PERIODS:
+            return available
+        index = ORDERED_PERIODS.index(period_group)
+        before = ORDERED_PERIODS[max(0, index - 2) : index]
+        after = ORDERED_PERIODS[index + 1 : index + 3]
+        if len(before) < 2 and len(after) < 2:
+            return available
+        scheduled = self._scheduled_periods_by_teacher(day_code)
+        filtered = []
+        for teacher in available:
+            name = teacher.get("name")
+            periods = scheduled.get(name, set())
+            before_blocked = len(before) == 2 and before[0] in periods and before[1] in periods
+            after_blocked = len(after) == 2 and after[0] in periods and after[1] in periods
+            if before_blocked or after_blocked:
+                continue
+            filtered.append(teacher)
+        return filtered
+
+    def _scheduled_periods_by_teacher(self, day_code: str) -> dict[str, set[str]]:
+        current = self._combined_schedule_df()
+        day_rows = current[current["DayCode"] == day_code]
+        scheduled: dict[str, set[str]] = {}
+        for _, row in day_rows.iterrows():
+            teacher = row.get("Teacher")
+            if not teacher:
+                continue
+            period = row.get("PeriodGroup") or row.get("PeriodRaw") or row.get("Period")
+            if not period:
+                continue
+            scheduled.setdefault(teacher, set()).add(str(period))
+        return scheduled
+
     def _max_periods_for_level(self, level_label: str, day_code: str) -> int:
         is_friday = day_code == "Fr"
         max_high = 5 if is_friday else 7
