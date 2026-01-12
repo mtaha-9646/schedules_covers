@@ -14,6 +14,7 @@ from assignment_settings import AssignmentSettingsManager
 from cover_assignment import CoverAssignmentManager
 from covers_service import CoversManager
 from db import get_session, init_db
+from models import DutyAssignment
 from schedule_service import (
     DAY_LABELS,
     DAY_ORDER,
@@ -25,6 +26,11 @@ from schedule_service import (
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "schedules.xlsx")
 LEAVE_WEBHOOK_SECRET = os.getenv("LEAVE_WEBHOOK_SECRET")
+DUTY_ASSIGNMENT_WEBHOOK_SECRET = os.getenv("DUTY_ASSIGNMENT_WEBHOOK_SECRET")
+DUTY_ASSIGNMENT_WEBHOOK_SECRET_HEADER = os.getenv(
+    "DUTY_ASSIGNMENT_WEBHOOK_SECRET_HEADER",
+    "X-Duty-Webhook-Secret",
+)
 DEPLOY_WEBHOOK_SECRET = os.getenv("DEPLOY_WEBHOOK_SECRET")
 DEPLOY_SCRIPT = os.path.join(BASE_DIR, "deploy.sh")
 
@@ -91,6 +97,24 @@ def _parse_date(value: str | None) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _normalize_duty_period(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        period_num = int(value)
+        if period_num > 0:
+            return f"P{period_num}"
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return f"P{text}"
+    if text[0].lower() == "p" and text[1:].isdigit():
+        return f"P{text[1:]}"
+    return text
 
 
 def _build_random_absences(
@@ -346,11 +370,15 @@ def check_availability():
                 ),
                 400,
             )
-        available = manager.teachers_available_for_api(derived_day_code, period_label)
+        slot_payload = manager.available_for_slot_api(
+            derived_day_code,
+            period_label,
+            assignment_date=requested_date,
+        )
         day_code = derived_day_code
         response_date = requested_date.isoformat()
     else:
-        available = manager.teachers_available_for_api(normalized_day, period_label)
+        slot_payload = manager.available_for_slot_api(normalized_day, period_label)
         day_code = normalized_day
         response_date = None
     return jsonify(
@@ -359,8 +387,9 @@ def check_availability():
             "day": day_code,
             "day_label": DAY_LABELS.get(day_code, day_code),
             "period": period_label,
-            "count": len(available),
-            "available": available,
+            "count": len(slot_payload["available"]),
+            "available": slot_payload["available"],
+            "occupied": slot_payload["occupied"],
         }
     )
 
@@ -397,6 +426,87 @@ def external_leave_approvals():
         record["request_id"],
     )
     return jsonify({"status": "recorded", "teacher": record["teacher"], "date": record["leave_start"]})
+
+
+@app.route("/external/duty-assignments", methods=["POST"])
+def external_duty_assignments():
+    if DUTY_ASSIGNMENT_WEBHOOK_SECRET:
+        provided_secret = request.headers.get(DUTY_ASSIGNMENT_WEBHOOK_SECRET_HEADER)
+        if provided_secret != DUTY_ASSIGNMENT_WEBHOOK_SECRET:
+            app.logger.warning("Duty assignment webhook secret missing or invalid")
+            return jsonify({"error": "missing or invalid secret"}), 403
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "expected JSON payload"}), 400
+    assignment_date = _parse_date(payload.get("assignment_date"))
+    if not assignment_date:
+        return jsonify({"error": "assignment_date is required (YYYY-MM-DD)"}), 400
+    grade = (payload.get("grade") or "").strip() or None
+    teachers_payload = payload.get("teachers")
+    if not isinstance(teachers_payload, list):
+        return jsonify({"error": "teachers must be a list"}), 400
+    records: list[DutyAssignment] = []
+    for teacher_entry in teachers_payload:
+        if not isinstance(teacher_entry, dict):
+            continue
+        teacher_name = (
+            teacher_entry.get("teacher")
+            or teacher_entry.get("name")
+            or teacher_entry.get("teacher_name")
+            or ""
+        ).strip()
+        teacher_email = (
+            teacher_entry.get("email")
+            or teacher_entry.get("teacher_email")
+            or ""
+        ).strip()
+        assignments = teacher_entry.get("assignments") or []
+        if not isinstance(assignments, list):
+            continue
+        for assignment in assignments:
+            if not isinstance(assignment, dict):
+                continue
+            slot_type = (assignment.get("slot_type") or "period").strip().lower()
+            period_label = _normalize_duty_period(assignment.get("period") or assignment.get("period_label"))
+            if slot_type == "period" and not period_label:
+                continue
+            pod = (assignment.get("pod") or "").strip()
+            label = (assignment.get("label") or "").strip()
+            if not label:
+                label = "Duty assignment"
+                if pod and period_label:
+                    label = f"{pod} {period_label}".strip()
+            record = DutyAssignment(
+                assignment_date=assignment_date,
+                grade=(assignment.get("grade") or grade),
+                slot_type=slot_type,
+                period_label=period_label,
+                pod=pod,
+                label=label,
+                break_location=assignment.get("break_location") or assignment.get("location"),
+                teacher_name=teacher_name or None,
+                teacher_email=teacher_email or None,
+                created_at=datetime.utcnow(),
+            )
+            records.append(record)
+    with session_factory() as session:
+        query = session.query(DutyAssignment).filter(
+            DutyAssignment.assignment_date == assignment_date
+        )
+        if grade:
+            query = query.filter(DutyAssignment.grade == grade)
+        query.delete(synchronize_session=False)
+        if records:
+            session.bulk_save_objects(records)
+        session.commit()
+    return jsonify(
+        {
+            "status": "recorded",
+            "assignment_date": assignment_date.isoformat(),
+            "grade": grade,
+            "count": len(records),
+        }
+    )
 
 
 @app.route("/covers/assignments")

@@ -1,11 +1,11 @@
 from __future__ import annotations
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Callable
 
 import pandas as pd
 
-from models import ScheduleEntry, TeacherManifest
+from models import DutyAssignment, ScheduleEntry, TeacherManifest
 
 DAY_ORDER = ["Mo", "Tu", "We", "Th", "Fr"]
 DAY_LABELS = {
@@ -790,24 +790,86 @@ class ScheduleManager:
             ],
         }
 
-    def teachers_available(self, day_code: str, period_label: str) -> list[dict]:
+    @staticmethod
+    def _parse_date_value(value: date | str | None) -> date | None:
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            try:
+                return date.fromisoformat(value)
+            except ValueError:
+                return None
+        return None
+
+    def _duty_records_for_slot(
+        self,
+        assignment_date: date | str | None,
+        period_label: str,
+    ) -> list[DutyAssignment]:
+        if not self._session_factory or not assignment_date or not period_label:
+            return []
+        parsed_date = self._parse_date_value(assignment_date)
+        if not parsed_date:
+            return []
+        period_group = self._normalize_period(period_label) or period_label
+        with self._session_factory() as session:
+            rows = (
+                session.query(DutyAssignment)
+                .filter(
+                    DutyAssignment.assignment_date == parsed_date,
+                    DutyAssignment.slot_type == "period",
+                    DutyAssignment.period_label == period_group,
+                )
+                .all()
+            )
+        return rows
+
+    def teachers_available(
+        self,
+        day_code: str,
+        period_label: str,
+        assignment_date: date | str | None = None,
+    ) -> list[dict]:
         current = self._combined_schedule_df()
         scheduled = current[
             (current["DayCode"] == day_code) & (current["PeriodGroup"] == period_label)
         ]["Teacher"]
         scheduled_set = set(scheduled)
+        duty_records = self._duty_records_for_slot(assignment_date, period_label)
+        duty_emails = {
+            record.teacher_email.strip().lower()
+            for record in duty_records
+            if record.teacher_email
+        }
+        duty_names = {
+            record.teacher_name.strip().lower()
+            for record in duty_records
+            if record.teacher_name
+        }
         available = []
         for slug, meta in self._teachers.items():
             if meta["name"] not in scheduled_set:
+                email_key = (meta.get("email") or "").strip().lower()
+                name_key = (meta.get("name") or "").strip().lower()
+                if email_key and email_key in duty_emails:
+                    continue
+                if name_key and name_key in duty_names:
+                    continue
                 available.append(meta)
         return available
 
-    def teachers_occupied(self, day_code: str, period_label: str) -> list[dict]:
+    def teachers_occupied(
+        self,
+        day_code: str,
+        period_label: str,
+        assignment_date: date | str | None = None,
+    ) -> list[dict]:
         current = self._combined_schedule_df()
         scheduled = current[
             (current["DayCode"] == day_code) & (current["PeriodGroup"] == period_label)
         ]
         result = {}
+        seen_keys: set[str] = set()
         for _, row in scheduled.iterrows():
             result[row["Teacher"]] = {
                 "name": row["Teacher"],
@@ -815,12 +877,46 @@ class ScheduleManager:
                 "details": row["DetailsDisplay"],
                 "subject": row["subject"],
             }
+            name_key = row["Teacher"].strip().lower()
+            if name_key:
+                seen_keys.add(name_key)
+            meta = self._name_index.get(row["Teacher"])
+            if meta and meta.get("email"):
+                seen_keys.add(meta["email"].strip().lower())
         enriched = []
         for teacher_name, row_data in result.items():
             meta = self._name_index.get(teacher_name)
             enriched.append(
                 {
                     **row_data,
+                    "level_label": meta["level_label"] if meta else "General",
+                    "grade_levels": meta.get("grade_levels", []) if meta else [],
+                }
+            )
+        duty_records = self._duty_records_for_slot(assignment_date, period_label)
+        for record in duty_records:
+            email_key = (record.teacher_email or "").strip().lower()
+            name_key = (record.teacher_name or "").strip().lower()
+            if email_key and email_key in seen_keys:
+                continue
+            if name_key and name_key in seen_keys:
+                continue
+            if email_key:
+                seen_keys.add(email_key)
+            if name_key:
+                seen_keys.add(name_key)
+            meta = None
+            if email_key:
+                meta = self._email_index.get(email_key)
+            if not meta and name_key:
+                meta = self._name_index.get(record.teacher_name)
+            display_name = record.teacher_name or (meta.get("name") if meta else None) or record.teacher_email or "Unknown"
+            enriched.append(
+                {
+                    "name": display_name,
+                    "period": period_label,
+                    "details": record.label or "Duty assignment",
+                    "subject": "Duty",
                     "level_label": meta["level_label"] if meta else "General",
                     "grade_levels": meta.get("grade_levels", []) if meta else [],
                 }
@@ -851,9 +947,14 @@ class ScheduleManager:
             except (TypeError, ValueError):
                 return 0
 
-    def available_for_slot(self, day_code: str, period_label: str) -> dict:
-        available = self.teachers_available(day_code, period_label)
-        occupied = self.teachers_occupied(day_code, period_label)
+    def available_for_slot(
+        self,
+        day_code: str,
+        period_label: str,
+        assignment_date: date | str | None = None,
+    ) -> dict:
+        available = self.teachers_available(day_code, period_label, assignment_date=assignment_date)
+        occupied = self.teachers_occupied(day_code, period_label, assignment_date=assignment_date)
         return {
             "available": available,
             "occupied": occupied,
@@ -861,9 +962,18 @@ class ScheduleManager:
             "day": DAY_LABELS.get(day_code, day_code),
         }
 
-    def available_for_slot_api(self, day_code: str, period_label: str) -> dict:
-        available = self.teachers_available_for_api(day_code, period_label)
-        occupied = self.teachers_occupied(day_code, period_label)
+    def available_for_slot_api(
+        self,
+        day_code: str,
+        period_label: str,
+        assignment_date: date | str | None = None,
+    ) -> dict:
+        available = self.teachers_available_for_api(
+            day_code,
+            period_label,
+            assignment_date=assignment_date,
+        )
+        occupied = self.teachers_occupied(day_code, period_label, assignment_date=assignment_date)
         return {
             "available": available,
             "occupied": occupied,
@@ -871,8 +981,13 @@ class ScheduleManager:
             "day": DAY_LABELS.get(day_code, day_code),
         }
 
-    def teachers_available_for_api(self, day_code: str, period_label: str) -> list[dict]:
-        available = self.teachers_available(day_code, period_label)
+    def teachers_available_for_api(
+        self,
+        day_code: str,
+        period_label: str,
+        assignment_date: date | str | None = None,
+    ) -> list[dict]:
+        available = self.teachers_available(day_code, period_label, assignment_date=assignment_date)
         period_group = self._normalize_period(period_label) or period_label
         if period_group not in ORDERED_PERIODS:
             return available

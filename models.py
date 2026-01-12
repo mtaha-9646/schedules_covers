@@ -112,3 +112,19 @@ class AssignmentSetting(Base):
 
     key = Column(String, primary_key=True)
     value = Column(Integer, nullable=False)
+
+
+class DutyAssignment(Base):
+    __tablename__ = "duty_assignments"
+
+    id = Column(Integer, primary_key=True)
+    assignment_date = Column(Date, index=True, nullable=False)
+    grade = Column(String, index=True)
+    slot_type = Column(String, nullable=False)
+    period_label = Column(String)
+    pod = Column(String)
+    label = Column(String)
+    break_location = Column(String)
+    teacher_name = Column(String)
+    teacher_email = Column(String, index=True)
+    created_at = Column(DateTime)
