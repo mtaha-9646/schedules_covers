@@ -335,7 +335,6 @@ class CoversManager:
         return {"status": "failed", "detail": detail, "timestamp": timestamp}
 
     def get_all_records(self) -> dict[str, list[dict[str, Any]]]:
-<<<<<<< HEAD
         if not self._session_factory:
             return self.records.copy()
         with self._session_factory() as session:
@@ -385,9 +384,6 @@ class CoversManager:
             "forward_status": record.forward_status,
             "forward_response": record.forward_response,
         }
-=======
-        return self.records.copy()
->>>>>>> f303d1e409943c21ae98a45eaf92d8d6c360d2b5
 
     def can_request_absences(self) -> bool:
         return bool(ABSENCES_REQUEST_URL)

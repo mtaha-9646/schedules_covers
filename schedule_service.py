@@ -83,6 +83,177 @@ class ScheduleManager:
         self._name_index = self._build_name_index()
         self._email_index = self._build_email_index()
 
+    def export_to_excel(self, excel_path: str | None = None) -> int:
+        if not self._session_factory:
+            return 0
+        with self._session_factory() as session:
+            rows = session.query(ScheduleEntry).all()
+        if not rows:
+            return 0
+        data = [
+            {
+                "Teacher": row.teacher,
+                "Day": row.day,
+                "Period": row.period,
+                "Details": row.details,
+                "email": row.email,
+                "subject": row.subject,
+                "course_count": row.course_count,
+            }
+            for row in rows
+        ]
+        df = pd.DataFrame(data)
+        output_path = excel_path or self.excel_path
+        df.to_excel(output_path, index=False)
+        return len(rows)
+
+    def get_entries_for_teacher(self, slug: str) -> list[dict[str, Any]]:
+        if not self._session_factory:
+            return []
+        meta = self.get_teacher(slug)
+        if not meta:
+            return []
+        with self._session_factory() as session:
+            rows = (
+                session.query(ScheduleEntry)
+                .filter(ScheduleEntry.teacher == meta["name"])
+                .order_by(ScheduleEntry.day_code, ScheduleEntry.period_rank)
+                .all()
+            )
+        return [
+            {
+                "id": row.id,
+                "day_code": row.day_code,
+                "day": row.day,
+                "period": row.period,
+                "period_raw": row.period_raw,
+                "details": row.details,
+                "subject": row.subject,
+            }
+            for row in rows
+        ]
+
+    def update_teacher_info(
+        self,
+        slug: str,
+        name: str,
+        email: str | None,
+        subject: str | None,
+        course_count: int | None,
+    ) -> str | None:
+        if not self._session_factory:
+            return None
+        meta = self.get_teacher(slug)
+        if not meta:
+            return None
+        teacher_name = meta["name"]
+        new_name = name.strip() if name else teacher_name
+        new_email = email.strip() if email else meta.get("email")
+        new_subject = subject.strip() if subject else meta.get("subject")
+        new_course_count = course_count if course_count is not None else meta.get("course_total")
+        with self._session_factory() as session:
+            session.query(ScheduleEntry).filter(
+                ScheduleEntry.teacher == teacher_name
+            ).update(
+                {
+                    ScheduleEntry.teacher: new_name,
+                    ScheduleEntry.email: new_email,
+                    ScheduleEntry.subject: new_subject,
+                    ScheduleEntry.course_count: new_course_count,
+                }
+            )
+            session.commit()
+        self.reload_data()
+        return slugify(new_name)
+
+    def update_schedule_entry(
+        self,
+        entry_id: int,
+        day_code: str,
+        period_label: str,
+        period_raw: str | None,
+        details: str,
+        subject: str | None,
+    ) -> bool:
+        if not self._session_factory:
+            return False
+        normalized_day = self.normalize_day(day_code)
+        if not normalized_day or not period_label:
+            return False
+        with self._session_factory() as session:
+            record = session.get(ScheduleEntry, entry_id)
+            if not record:
+                return False
+            record.day_code = normalized_day
+            record.day = DAY_LABELS.get(normalized_day, normalized_day)
+            record.period = period_label.strip()
+            raw_value = period_raw.strip() if period_raw else record.period
+            record.period_raw = raw_value
+            record.period_group = self._normalize_period(raw_value) or raw_value
+            record.period_rank = (
+                self._period_rank(record.period_group or raw_value) or len(ORDERED_PERIODS)
+            )
+            record.details = details.strip() if details else ""
+            record.details_display = record.details or "General Duty"
+            record.grade_detected = self._detect_grade(record.details or "")
+            if subject is not None:
+                record.subject = subject.strip()
+            session.commit()
+        self.reload_data()
+        return True
+
+    def add_schedule_entry(
+        self,
+        slug: str,
+        day_code: str,
+        period_label: str,
+        period_raw: str | None,
+        details: str,
+        subject: str | None,
+    ) -> bool:
+        if not self._session_factory:
+            return False
+        meta = self.get_teacher(slug)
+        if not meta:
+            return False
+        normalized_day = self.normalize_day(day_code)
+        if not normalized_day or not period_label:
+            return False
+        raw_value = period_raw.strip() if period_raw else period_label.strip()
+        period_group = self._normalize_period(raw_value) or raw_value
+        record = ScheduleEntry(
+            teacher=meta["name"],
+            day=DAY_LABELS.get(normalized_day, normalized_day),
+            day_code=normalized_day,
+            period=period_label.strip(),
+            period_raw=raw_value,
+            period_group=period_group,
+            period_rank=self._period_rank(period_group) or len(ORDERED_PERIODS),
+            details=details.strip() if details else "",
+            details_display=details.strip() if details else "General Duty",
+            grade_detected=self._detect_grade(details or ""),
+            email=meta.get("email"),
+            subject=(subject.strip() if subject else meta.get("subject")),
+            course_count=self._as_int(meta.get("course_total")),
+        )
+        with self._session_factory() as session:
+            session.add(record)
+            session.commit()
+        self.reload_data()
+        return True
+
+    def delete_schedule_entry(self, entry_id: int) -> bool:
+        if not self._session_factory:
+            return False
+        with self._session_factory() as session:
+            record = session.get(ScheduleEntry, entry_id)
+            if not record:
+                return False
+            session.delete(record)
+            session.commit()
+        self.reload_data()
+        return True
+
     def _combined_schedule_df(self) -> pd.DataFrame:
         if self._dynamic_rows.empty:
             return self._df

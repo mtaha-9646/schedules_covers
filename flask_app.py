@@ -90,11 +90,6 @@ def _parse_date(value: str | None) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
-
-<<<<<<< HEAD
-
-=======
->>>>>>> f303d1e409943c21ae98a45eaf92d8d6c360d2b5
 @app.route("/")
 def index():
     coverage_counts = Counter()
@@ -117,6 +112,8 @@ def index():
         }
         for code in DAY_ORDER
     ]
+    export_status = request.args.get("export_status")
+    export_count = _to_int(request.args.get("export_count"))
     return render_template(
         "teachers.html",
         teachers=manager.teacher_cards,
@@ -124,6 +121,8 @@ def index():
         days=DAY_LABELS,
         period_options=ORDERED_PERIODS,
         coverage_summary=coverage_summary,
+        export_status=export_status,
+        export_count=export_count,
     )
 
 
@@ -135,15 +134,127 @@ def refresh_schedules():
     return redirect(url_for("index"))
 
 
+@app.route("/schedules/export", methods=["POST"])
+def export_schedules():
+    count = manager.export_to_excel()
+    app.logger.info("Schedule data exported to %s (%d rows)", DATA_FILE, count)
+    return redirect(
+        url_for(
+            "index",
+            export_status="success" if count else "failed",
+            export_count=count,
+        )
+    )
+
+
 @app.route("/teachers/<slug>")
 def teacher_detail(slug: str):
     info = manager.get_schedule_for_teacher(slug)
     if not info:
         abort(404)
+    schedule_entries = manager.get_entries_for_teacher(slug)
+    update_status = request.args.get("update_status")
+    update_message = request.args.get("update_message")
     return render_template(
         "teacher_detail.html",
         teacher=info["meta"],
         schedule=info["schedule"],
+        schedule_entries=schedule_entries,
+        day_labels=DAY_LABELS,
+        period_options=ORDERED_PERIODS,
+        update_status=update_status,
+        update_message=update_message,
+    )
+
+
+@app.route("/teachers/<slug>/update", methods=["POST"])
+def teacher_update(slug: str):
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip() or None
+    subject = (request.form.get("subject") or "").strip() or None
+    course_total_raw = request.form.get("course_total")
+    course_total = _to_int(course_total_raw) if course_total_raw else None
+    new_slug = manager.update_teacher_info(slug, name, email, subject, course_total)
+    if not new_slug:
+        return redirect(
+            url_for(
+                "teacher_detail",
+                slug=slug,
+                update_status="failed",
+                update_message="Unable to update teacher info.",
+            )
+        )
+    return redirect(
+        url_for(
+            "teacher_detail",
+            slug=new_slug,
+            update_status="success",
+            update_message="Teacher info updated.",
+        )
+    )
+
+
+@app.route("/teachers/<slug>/schedule/add", methods=["POST"])
+def schedule_entry_add(slug: str):
+    day_code = request.form.get("day_code") or ""
+    period_label = (request.form.get("period_label") or "").strip()
+    period_raw = (request.form.get("period_raw") or "").strip()
+    details = (request.form.get("details") or "").strip()
+    subject = (request.form.get("subject") or "").strip() or None
+    success = manager.add_schedule_entry(
+        slug,
+        day_code,
+        period_label,
+        period_raw,
+        details,
+        subject,
+    )
+    return redirect(
+        url_for(
+            "teacher_detail",
+            slug=slug,
+            update_status="success" if success else "failed",
+            update_message="Schedule entry added." if success else "Unable to add schedule entry.",
+        )
+    )
+
+
+@app.route("/teachers/<slug>/schedule/<int:entry_id>/update", methods=["POST"])
+def schedule_entry_update(slug: str, entry_id: int):
+    day_code = request.form.get("day_code") or ""
+    period_label = (request.form.get("period_label") or "").strip()
+    period_raw = (request.form.get("period_raw") or "").strip()
+    details = (request.form.get("details") or "").strip()
+    subject = (request.form.get("subject") or "").strip()
+    subject_value = subject if subject else None
+    success = manager.update_schedule_entry(
+        entry_id,
+        day_code,
+        period_label,
+        period_raw,
+        details,
+        subject_value,
+    )
+    return redirect(
+        url_for(
+            "teacher_detail",
+            slug=slug,
+            update_status="success" if success else "failed",
+            update_message="Schedule entry updated." if success else "Unable to update schedule entry.",
+        )
+    )
+
+
+@app.route("/teachers/<slug>/schedule/<int:entry_id>/delete", methods=["POST"])
+def schedule_entry_delete(slug: str, entry_id: int):
+    success = manager.delete_schedule_entry(entry_id)
+    return redirect(
+        url_for(
+            "teacher_detail",
+            slug=slug,
+            update_status="success" if success else "failed",
+            update_message="Schedule entry removed." if success else "Unable to remove schedule entry.",
+        )
     )
 
 
