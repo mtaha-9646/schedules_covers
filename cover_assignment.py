@@ -510,6 +510,7 @@ class CoverAssignmentManager:
         entry["cover_max_periods"] = cover["day"]["max_periods"]
         entry["cover_assigned_at"] = datetime.utcnow().isoformat()
         entry["day_label"] = cover["day"]["label"]
+<<<<<<< HEAD
         self._update_assignment_record(entry)
         self._persist_assignments()
         return True, "reassigned"
@@ -704,6 +705,11 @@ class CoverAssignmentManager:
             session.bulk_save_objects(records)
             session.commit()
 
+=======
+        self._persist_assignments()
+        return True, "reassigned"
+
+>>>>>>> f303d1e409943c21ae98a45eaf92d8d6c360d2b5
     def _covers_for_teacher_on_date(self, date_key: str, slug: str) -> int:
         return sum(
             1

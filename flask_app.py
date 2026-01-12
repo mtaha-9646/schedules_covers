@@ -91,7 +91,10 @@ def _parse_date(value: str | None) -> date | None:
     except ValueError:
         return None
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> f303d1e409943c21ae98a45eaf92d8d6c360d2b5
 @app.route("/")
 def index():
     coverage_counts = Counter()
