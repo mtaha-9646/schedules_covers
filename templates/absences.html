@@ -17,6 +17,26 @@
         {% endif %}
       </span>
     </div>
+    {% if sync_status %}
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      {% if sync_status == "disabled" %}
+        Absence sync is not configured. Set ABSENCES_REQUEST_URL to enable manual requests.
+      {% elif sync_status == "failed" %}
+        Unable to request absences from the server. Check the webhook endpoint and secret.
+      {% else %}
+        Absence sync requested.{% if sync_added %} Recorded {{ sync_added }} absences.{% endif %}{% if sync_skipped %} Skipped {{ sync_skipped }} entries.{% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if manual_status %}
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      {% if manual_status == "success" %}
+        Manual absence recorded and cover assignment triggered.
+      {% else %}
+        Manual absence failed{% if manual_reason %}: {{ manual_reason }}{% endif %}.
+      {% endif %}
+    </div>
+    {% endif %}
     <form method="post" action="{{ url_for('assign_missing_absences') }}" class="flex flex-wrap items-center gap-3">
       <button
         type="submit"
@@ -26,6 +46,76 @@
         Assign pending absences ({{ pending_count }})
       </button>
       <p class="text-xs text-slate-500">Re-run assignments for every recorded leave (includes future dates).</p>
+    </form>
+    <form method="post" action="{{ url_for('request_absences_webhook') }}" class="flex flex-wrap items-center gap-3">
+      <button
+        type="submit"
+        {% if not absences_request_enabled %}disabled{% endif %}
+        class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
+      >
+        Request missed absences
+      </button>
+      <p class="text-xs text-slate-500">Ask the server to resend any absences that were missed.</p>
+    </form>
+    <form method="post" action="{{ url_for('manual_absence') }}" class="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+          Teacher email
+          <input
+            type="email"
+            name="email"
+            required
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            placeholder="teacher@school.org"
+          />
+        </label>
+        <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+          Leave type
+          <input
+            type="text"
+            name="leave_type"
+            value="manual"
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+          />
+        </label>
+      </div>
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+          Start date
+          <input
+            type="date"
+            name="start_date"
+            required
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+          />
+        </label>
+        <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+          End date
+          <input
+            type="date"
+            name="end_date"
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+          />
+        </label>
+      </div>
+      <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+        Reason (optional)
+        <input
+          type="text"
+          name="reason"
+          class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+          placeholder="Optional note"
+        />
+      </label>
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          class="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white hover:bg-slate-800"
+        >
+          Add manual absence
+        </button>
+        <p class="text-xs text-slate-500">Assignments use the teacher schedule for each day in the range.</p>
+      </div>
     </form>
     <form method="get" class="mt-4 flex flex-wrap items-end gap-3">
       <label class="text-[11px] uppercase tracking-[0.3em] text-slate-500" for="absence-date">Choose date</label>

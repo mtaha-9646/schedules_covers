@@ -50,6 +50,15 @@
           <span class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ selected_day_label }}</span>
           {% endif %}
         </div>
+        {% if reassign_status %}
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          {% if reassign_status == "success" %}
+            Cover reassigned using automatic selection rules.
+          {% else %}
+            Could not reassign cover{% if reassign_reason %}: {{ reassign_reason }}{% endif %}.
+          {% endif %}
+        </div>
+        {% endif %}
         {% if rows %}
         <div class="flex flex-wrap gap-2 mb-3 no-print">
           <button
@@ -121,6 +130,18 @@
                   >
                     Edit
                   </a>
+                  <form
+                    method="post"
+                    action="{{ url_for('assignment_reassign', date_key=selected_date, item_idx=loop.index0) }}"
+                    class="inline"
+                  >
+                    <button
+                      type="submit"
+                      class="ml-2 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-600 hover:bg-slate-50"
+                    >
+                      Reassign
+                    </button>
+                  </form>
                 </td>
               </tr>
               {% endfor %}

@@ -13,6 +13,12 @@ COVERS_FILE = os.path.join(BASE_DIR, "covers.json")
 COVERS_FORWARD_URL = os.getenv("COVERS_FORWARD_URL")
 COVERS_FORWARD_SECRET = os.getenv("COVERS_FORWARD_SECRET")
 COVERS_FORWARD_SECRET_HEADER = os.getenv("COVERS_FORWARD_SECRET_HEADER", "X-Leave-Webhook-Secret")
+ABSENCES_REQUEST_URL = os.getenv("ABSENCES_REQUEST_URL")
+ABSENCES_REQUEST_SECRET = os.getenv("ABSENCES_REQUEST_SECRET")
+ABSENCES_REQUEST_SECRET_HEADER = os.getenv(
+    "ABSENCES_REQUEST_SECRET_HEADER",
+    "X-Absences-Request-Secret",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -193,3 +199,56 @@ class CoversManager:
 
     def get_all_records(self) -> dict[str, list[dict[str, Any]]]:
         return self.records.copy()
+
+    def can_request_absences(self) -> bool:
+        return bool(ABSENCES_REQUEST_URL)
+
+    def request_absences_webhook(self, payload: Optional[Dict[str, Any]] = None) -> dict[str, Any]:
+        if not ABSENCES_REQUEST_URL:
+            return {"status": "disabled", "detail": "ABSENCES_REQUEST_URL not configured"}
+        request_payload = payload or {"requested_at": datetime.utcnow().isoformat()}
+        headers = {"Content-Type": "application/json"}
+        if ABSENCES_REQUEST_SECRET:
+            headers[ABSENCES_REQUEST_SECRET_HEADER] = ABSENCES_REQUEST_SECRET
+        request_data = json.dumps(request_payload).encode("utf-8")
+        req = urllib.request.Request(ABSENCES_REQUEST_URL, data=request_data, headers=headers, method="POST")
+        timestamp = datetime.utcnow().isoformat()
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                body = response.read().decode("utf-8", errors="ignore")
+                status_code = response.getcode()
+                records = self._parse_absence_response(body)
+                return {
+                    "status": "sent",
+                    "detail": str(status_code),
+                    "timestamp": timestamp,
+                    "records": records,
+                }
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            detail = f"HTTP {exc.code}: {body}"
+            logger.warning("Absence request failed with HTTP error %s: %s", exc.code, body)
+        except urllib.error.URLError as exc:
+            detail = f"URL error: {exc}"
+            logger.warning("Absence request failed with URL error: %s", exc)
+        except Exception as exc:  # pragma: no cover
+            detail = f"Unknown error: {exc}"
+            logger.exception("Unexpected error while requesting absences: %s", exc)
+        return {"status": "failed", "detail": detail, "timestamp": timestamp}
+
+    @staticmethod
+    def _parse_absence_response(body: str) -> list[dict[str, Any]]:
+        if not body:
+            return []
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            return []
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        if isinstance(data, dict):
+            for key in ("records", "absences", "data"):
+                value = data.get(key)
+                if isinstance(value, list):
+                    return [item for item in value if isinstance(item, dict)]
+        return []

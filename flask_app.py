@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import date, datetime
 import os
 import subprocess
+import uuid
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 from typing import Any
@@ -32,6 +33,55 @@ settings_manager = AssignmentSettingsManager()
 assignment_manager = CoverAssignmentManager(manager, covers_manager, settings_manager)
 assignment_manager.sync_existing_records()
 
+
+def _to_int(value: str | None) -> int:
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _prepare_leave_payload(
+    payload: dict[str, Any],
+    allow_unknown_teacher: bool = False,
+) -> dict[str, Any]:
+    if not payload or not isinstance(payload, dict):
+        raise ValueError("expected JSON payload")
+    missing = []
+    email = payload.get("email") or payload.get("teacher_email")
+    if not email:
+        missing.append("email")
+    for field in ("leave_type", "leave_start", "leave_end", "submitted_at"):
+        if not payload.get(field):
+            missing.append(field)
+    if missing:
+        raise ValueError(f"missing fields: {', '.join(missing)}")
+    teacher_meta = manager.find_teacher_by_email(email)
+    if not teacher_meta:
+        if not allow_unknown_teacher:
+            raise LookupError(f"teacher not found for email {email}")
+        payload = payload.copy()
+        payload["teacher"] = payload.get("teacher") or payload.get("name") or payload.get("employee") or email
+        payload["email"] = email
+        return payload
+    payload = payload.copy()
+    payload["teacher"] = teacher_meta["name"]
+    payload["email"] = teacher_meta["email"]
+    payload["teacher_slug"] = teacher_meta["slug"]
+    payload["subject"] = teacher_meta["subject"]
+    payload["level_label"] = teacher_meta["level_label"]
+    return payload
+
+
+def _parse_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
 
 @app.route("/")
 def index():
@@ -149,25 +199,14 @@ def external_leave_approvals():
             app.logger.warning("Leave webhook secret missing or invalid")
             return jsonify({"error": "missing or invalid secret"}), 403
     payload = request.get_json(silent=True)
-    if not payload:
-        app.logger.warning("Leave webhook received without JSON payload")
-        return jsonify({"error": "expected JSON payload"}), 400
-    required_fields = ["email", "leave_type", "leave_start", "leave_end", "submitted_at"]
-    missing = [field for field in required_fields if not payload.get(field)]
-    if missing:
-        msg = f"missing fields: {', '.join(missing)}"
-        app.logger.warning(msg)
-        return jsonify({"error": msg}), 400
-    teacher_meta = manager.find_teacher_by_email(payload["email"])
-    if not teacher_meta:
-        app.logger.warning("No teacher found for email %s", payload["email"])
+    try:
+        payload = _prepare_leave_payload(payload, allow_unknown_teacher=True)
+    except ValueError as exc:
+        app.logger.warning("Leave webhook payload invalid: %s", exc)
+        return jsonify({"error": str(exc)}), 400
+    except LookupError as exc:
+        app.logger.warning("Leave webhook payload missing teacher: %s", exc)
         return jsonify({"error": "teacher not found"}), 404
-    payload = payload.copy()
-    payload["teacher"] = teacher_meta["name"]
-    payload["email"] = teacher_meta["email"]
-    payload["teacher_slug"] = teacher_meta["slug"]
-    payload["subject"] = teacher_meta["subject"]
-    payload["level_label"] = teacher_meta["level_label"]
     try:
         record = covers_manager.record_leave(payload)
     except ValueError as exc:
@@ -195,6 +234,8 @@ def covers_assignments():
     if not selected_date and date_keys:
         selected_date = date_keys[-1]
     selected_rows = assignments.get(selected_date, [])
+    reassign_status = request.args.get("reassign_status")
+    reassign_reason = request.args.get("reassign_reason")
 
     date_options: list[dict[str, str | None]] = []
     for date_key in date_keys:
@@ -222,6 +263,8 @@ def covers_assignments():
         date_options=date_options,
         selected_date=selected_date,
         selected_day_label=selected_day_label,
+        reassign_status=reassign_status,
+        reassign_reason=reassign_reason,
     )
 
 
@@ -368,6 +411,13 @@ def absences_overview():
         selected_date = date_keys[-1]
     rows = records_by_date.get(selected_date, [])
 
+    sync_status = request.args.get("sync_status")
+    sync_added = _to_int(request.args.get("sync_added"))
+    sync_skipped = _to_int(request.args.get("sync_skipped"))
+    absences_request_enabled = covers_manager.can_request_absences()
+    manual_status = request.args.get("manual_status")
+    manual_reason = request.args.get("manual_reason")
+
     assigned_ids = assignment_manager.assigned_request_ids()
     assigned_count = sum(1 for entry in rows if entry.get("request_id") in assigned_ids)
     pending_count = len(rows) - assigned_count
@@ -401,6 +451,12 @@ def absences_overview():
         assigned_ids=assigned_ids,
         assigned_count=assigned_count,
         pending_count=pending_count,
+        sync_status=sync_status,
+        sync_added=sync_added,
+        sync_skipped=sync_skipped,
+        absences_request_enabled=absences_request_enabled,
+        manual_status=manual_status,
+        manual_reason=manual_reason,
     )
 
 
@@ -409,6 +465,111 @@ def assign_missing_absences():
     count = assignment_manager.assign_missing_records()
     app.logger.info("Triggered assignment for %d pending absences", count)
     return redirect(url_for("absences_overview"))
+
+
+@app.route("/absences/manual", methods=["POST"])
+def manual_absence():
+    email = (request.form.get("email") or "").strip()
+    start_value = request.form.get("start_date")
+    end_value = request.form.get("end_date") or start_value
+    leave_type = (request.form.get("leave_type") or "manual").strip()
+    reason = (request.form.get("reason") or "").strip()
+
+    start_date = _parse_date(start_value)
+    end_date = _parse_date(end_value)
+    if not email or not start_date or not end_date:
+        return redirect(
+            url_for(
+                "absences_overview",
+                manual_status="failed",
+                manual_reason="missing or invalid fields",
+            )
+        )
+    if end_date < start_date:
+        return redirect(
+            url_for(
+                "absences_overview",
+                manual_status="failed",
+                manual_reason="end date before start date",
+            )
+        )
+    payload = {
+        "request_id": f"manual-{uuid.uuid4().hex}",
+        "email": email,
+        "leave_type": leave_type,
+        "leave_start": start_date.isoformat(),
+        "leave_end": end_date.isoformat(),
+        "submitted_at": datetime.utcnow().isoformat(),
+        "status": "approved",
+    }
+    if reason:
+        payload["reason"] = reason
+    try:
+        payload = _prepare_leave_payload(payload)
+        record = covers_manager.record_leave(payload)
+    except LookupError:
+        return redirect(
+            url_for(
+                "absences_overview",
+                manual_status="failed",
+                manual_reason="teacher not found",
+            )
+        )
+    except ValueError:
+        return redirect(
+            url_for(
+                "absences_overview",
+                manual_status="failed",
+                manual_reason="invalid request",
+            )
+        )
+    assignment_manager.assign_for_record(record)
+    return redirect(
+        url_for(
+            "absences_overview",
+            date=start_date.isoformat(),
+            manual_status="success",
+        )
+    )
+
+
+@app.route("/absences/request-webhook", methods=["POST"])
+def request_absences_webhook():
+    result = covers_manager.request_absences_webhook()
+    added = 0
+    skipped = 0
+    records = result.get("records") or []
+    if isinstance(records, list):
+        for item in records:
+            if not isinstance(item, dict):
+                skipped += 1
+                continue
+            try:
+                payload = _prepare_leave_payload(item, allow_unknown_teacher=True)
+            except (ValueError, LookupError) as exc:
+                skipped += 1
+                app.logger.warning("Skipped absence payload from sync: %s", exc)
+                continue
+            try:
+                record = covers_manager.record_leave(payload)
+            except ValueError as exc:
+                skipped += 1
+                app.logger.warning("Invalid synced absence payload: %s", exc)
+                continue
+            except Exception:
+                skipped += 1
+                app.logger.exception("Failed to record synced absence payload")
+                continue
+            assignment_manager.assign_for_record(record)
+            added += 1
+    return redirect(
+        url_for(
+            "absences_overview",
+            sync_status=result.get("status"),
+            sync_added=added,
+            sync_skipped=skipped,
+        )
+    )
 
 
 @app.route("/assignments/edit/<path:date_key>/<int:item_idx>", methods=["GET", "POST"])
@@ -444,6 +605,21 @@ def assignment_edit(date_key: str, item_idx: int):
         teachers=teachers,
         date_key=date_key,
         item_idx=item_idx,
+    )
+
+
+@app.route("/assignments/reassign/<path:date_key>/<int:item_idx>", methods=["POST"])
+def assignment_reassign(date_key: str, item_idx: int):
+    success, reason = assignment_manager.reassign_assignment(date_key, item_idx)
+    if not success:
+        app.logger.warning("Reassign failed for %s #%s: %s", date_key, item_idx, reason)
+    return redirect(
+        url_for(
+            "covers_assignments",
+            date=date_key,
+            reassign_status="success" if success else "failed",
+            reassign_reason=None if success else reason,
+        )
     )
 
 
