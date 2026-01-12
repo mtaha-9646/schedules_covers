@@ -35,6 +35,9 @@ DEPLOY_WEBHOOK_SECRET = os.getenv("DEPLOY_WEBHOOK_SECRET")
 DEPLOY_SCRIPT = os.path.join(BASE_DIR, "deploy.sh")
 
 app = Flask(__name__)
+app.config["DUTY_ASSIGNMENT_WEBHOOK_URL"] = "https://behavioralreef.pythonanywhere.com/external/duty-assignments"
+app.config["DUTY_ASSIGNMENT_WEBHOOK_SECRET"] = "12345"
+app.config["DUTY_ASSIGNMENT_WEBHOOK_TIMEOUT"] = 5
 init_db()
 session_factory = get_session
 manager = ScheduleManager(DATA_FILE, session_factory=session_factory)
