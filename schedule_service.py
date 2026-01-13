@@ -711,12 +711,16 @@ class ScheduleManager:
     def get_teacher(self, slug: str) -> dict | None:
         return self._teachers.get(slug)
 
-    def get_schedule_for_teacher(self, slug: str) -> dict | None:
+    def get_schedule_for_teacher(
+        self,
+        slug: str,
+        include_covers: bool = False,
+    ) -> dict | None:
         meta = self.get_teacher(slug)
         if not meta:
             return None
-        combined = self._combined_schedule_df()
-        schedule_df = combined[combined["Teacher"] == meta["name"]]
+        source_df = self._combined_schedule_df() if include_covers else self._df
+        schedule_df = source_df[source_df["Teacher"] == meta["name"]]
         schedule_by_day = []
         for day_code in DAY_ORDER:
             day_name = DAY_LABELS.get(day_code, day_code)
