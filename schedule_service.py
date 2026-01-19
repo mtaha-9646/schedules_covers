@@ -66,7 +66,8 @@ class ScheduleManager:
         if self._df.empty and self._session_factory:
             self.import_from_excel()
             self._df = self._load_schedule()
-        self._dynamic_rows = pd.DataFrame(columns=self._df.columns)
+        self._cover_rows = pd.DataFrame(columns=self._df.columns)
+        self._duty_rows = pd.DataFrame(columns=self._df.columns)
         self._course_count_column = self._select_course_count_column()
         self._manifest = self._load_teacher_manifest()
         self._teachers = self._build_teacher_index()
@@ -76,7 +77,8 @@ class ScheduleManager:
     def reload_data(self) -> None:
         """Reload the schedule data from disk, rebuilding teacher metadata."""
         self._df = self._load_schedule()
-        self._dynamic_rows = pd.DataFrame(columns=self._df.columns)
+        self._cover_rows = pd.DataFrame(columns=self._df.columns)
+        self._duty_rows = pd.DataFrame(columns=self._df.columns)
         self._course_count_column = self._select_course_count_column()
         self._manifest = self._load_teacher_manifest()
         self._teachers = self._build_teacher_index()
@@ -255,12 +257,20 @@ class ScheduleManager:
         return True
 
     def _combined_schedule_df(self) -> pd.DataFrame:
-        if self._dynamic_rows.empty:
+        if self._cover_rows.empty and self._duty_rows.empty:
             return self._df
-        return pd.concat([self._df, self._dynamic_rows], ignore_index=True)
+        frames = [self._df]
+        if not self._cover_rows.empty:
+            frames.append(self._cover_rows)
+        if not self._duty_rows.empty:
+            frames.append(self._duty_rows)
+        return pd.concat(frames, ignore_index=True)
 
     def clear_cover_assignments(self) -> None:
-        self._dynamic_rows = pd.DataFrame(columns=self._df.columns)
+        self._cover_rows = pd.DataFrame(columns=self._df.columns)
+
+    def clear_pod_duty_assignments(self) -> None:
+        self._duty_rows = pd.DataFrame(columns=self._df.columns)
 
     def rebuild_cover_assignments(
         self, assignments: dict[str, list[dict[str, Any]]]
@@ -269,6 +279,15 @@ class ScheduleManager:
         for rows in assignments.values():
             for entry in rows:
                 self._append_cover_row(entry)
+        if not self._cover_rows.empty:
+            self._cover_rows = self._cover_rows.reset_index(drop=True)
+
+    def rebuild_pod_duty_assignments(self, assignments: list[dict[str, Any]]) -> None:
+        self.clear_pod_duty_assignments()
+        for entry in assignments:
+            self._append_pod_duty_row(entry)
+        if not self._duty_rows.empty:
+            self._duty_rows = self._duty_rows.reset_index(drop=True)
 
     def _append_cover_row(self, assignment: dict[str, Any]) -> None:
         if not assignment:
@@ -306,8 +325,52 @@ class ScheduleManager:
             "GradeDetected": grade_detected,
             "DetailsDisplay": details,
         }
-        self._dynamic_rows = pd.concat(
-            [self._dynamic_rows, pd.DataFrame([row])],
+        self._cover_rows = pd.concat(
+            [self._cover_rows, pd.DataFrame([row])],
+            ignore_index=True,
+        )
+
+    def _append_pod_duty_row(self, assignment: dict[str, Any]) -> None:
+        if not assignment:
+            return
+        teacher_name = assignment.get("teacher_name") or assignment.get("teacher")
+        if not teacher_name:
+            return
+        day_code = assignment.get("day_code")
+        if not day_code:
+            date_value = assignment.get("assignment_date") or assignment.get("date")
+            if date_value:
+                try:
+                    parsed = date.fromisoformat(str(date_value))
+                    day_code = WEEKDAY_TO_DAY_CODE.get(parsed.weekday())
+                except ValueError:
+                    day_code = None
+        period_label = str(assignment.get("period_label") or "").strip()
+        if not period_label:
+            return
+        period_raw = str(assignment.get("period_raw") or period_label).strip()
+        period_group = self._normalize_period(period_raw) or period_label
+        period_rank = self._period_rank(period_group or period_raw) or len(ORDERED_PERIODS)
+        pod_label = assignment.get("pod_label") or assignment.get("pod") or ""
+        details = assignment.get("details") or f"Pod Duty {pod_label}".strip() or "Pod Duty"
+        email = assignment.get("teacher_email") or assignment.get("email")
+        row = {
+            "Teacher": teacher_name,
+            "Day": DAY_LABELS.get(day_code, day_code or ""),
+            "Period": period_label,
+            "Details": details,
+            "course_count": 0,
+            "email": email or "schedule@charterschools.ae",
+            "subject": "Pod Duty",
+            "DayCode": day_code or "",
+            "PeriodRaw": period_raw,
+            "PeriodGroup": period_group,
+            "PeriodRank": period_rank,
+            "GradeDetected": None,
+            "DetailsDisplay": details,
+        }
+        self._duty_rows = pd.concat(
+            [self._duty_rows, pd.DataFrame([row])],
             ignore_index=True,
         )
 
@@ -572,10 +635,8 @@ class ScheduleManager:
         )
 
     def _ordered_grade_levels(self, group: pd.DataFrame) -> list[int]:
-        ordered = self._ordered_group(group)
-        seen: set[int] = set()
-        grades: list[int] = []
-        for _, row in ordered.iterrows():
+        counts: dict[int, int] = {}
+        for _, row in group.iterrows():
             grade = row.get("GradeDetected")
             if not grade:
                 continue
@@ -583,11 +644,14 @@ class ScheduleManager:
                 grade_value = int(grade)
             except (TypeError, ValueError):
                 continue
-            if grade_value in seen:
-                continue
-            seen.add(grade_value)
-            grades.append(grade_value)
-        return grades
+            counts[grade_value] = counts.get(grade_value, 0) + 1
+        if not counts:
+            return []
+        sorted_grades = sorted(
+            counts.keys(),
+            key=lambda value: (-counts[value], value),
+        )
+        return sorted_grades
 
     def _primary_class_label(self, group: pd.DataFrame) -> str:
         fallback = None
@@ -741,7 +805,7 @@ class ScheduleManager:
         return {"meta": meta, "schedule": schedule_by_day}
 
     def day_summary_for_teacher(self, slug: str, day_code: str) -> dict:
-        data = self.get_schedule_for_teacher(slug)
+        data = self.get_schedule_for_teacher(slug, include_covers=True)
         if data:
             for day in data["schedule"]:
                 if day.get("code") == day_code:

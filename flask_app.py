@@ -15,6 +15,7 @@ from cover_assignment import CoverAssignmentManager
 from covers_service import CoversManager
 from db import get_session, init_db
 from models import DutyAssignment
+from pod_duty import PodDutyManager
 from schedule_service import (
     DAY_LABELS,
     DAY_ORDER,
@@ -50,6 +51,12 @@ assignment_manager = CoverAssignmentManager(
     session_factory=session_factory,
 )
 assignment_manager.sync_existing_records()
+pod_duty_manager = PodDutyManager(
+    manager,
+    session_factory=session_factory,
+    covers_manager=covers_manager,
+    excluded_slugs_source=assignment_manager.excluded_teacher_slugs,
+)
 
 
 def _to_int(value: str | None) -> int:
@@ -201,6 +208,7 @@ def index():
 def refresh_schedules():
     count = manager.import_from_excel()
     manager.reload_data()
+    pod_duty_manager.refresh_dynamic_rows()
     app.logger.info("Schedule data imported from %s (%d rows)", DATA_FILE, count)
     return redirect(url_for("index"))
 
@@ -235,6 +243,217 @@ def teacher_detail(slug: str):
         period_options=ORDERED_PERIODS,
         update_status=update_status,
         update_message=update_message,
+    )
+
+
+@app.route("/pod-duty")
+def pod_duty_dashboard():
+    period_raw = request.args.get("period") or "P1"
+    date_raw = request.args.get("date")
+    assignment_date = _parse_date(date_raw) or date.today()
+    period_label = manager.normalize_period(period_raw) or period_raw.strip()
+    assignments = pod_duty_manager.list_assignments(assignment_date, period_label)
+    available = pod_duty_manager.available_teachers(assignment_date, period_label)
+    allowed_by_pod = pod_duty_manager.allowed_slugs_by_pod(assignment_date, period_label)
+    allowed_union = set()
+    for slugs in allowed_by_pod.values():
+        allowed_union.update(slugs)
+    cached_assignments = pod_duty_manager.get_cached_assignments(assignment_date, period_label)
+    cached_map = {entry["pod_label"]: entry for entry in cached_assignments}
+    pods = []
+    for pod in pod_duty_manager.pods:
+        label = pod["label"]
+        pods.append(
+            {
+                "label": label,
+                "key": pod["key"],
+                "grade": pod["grade"],
+                "assigned": assignments.get(label),
+                "suggested": cached_map.get(label),
+            }
+        )
+    status = request.args.get("status")
+    message = request.args.get("message")
+    day_code = WEEKDAY_TO_DAY_CODE.get(assignment_date.weekday())
+    day_label = DAY_LABELS.get(day_code, day_code or "")
+    return render_template(
+        "pod_duty.html",
+        assignment_date=assignment_date,
+        period_label=period_label,
+        period_options=ORDERED_PERIODS,
+        pods=pods,
+        teachers=manager.teacher_cards,
+        allowed_by_pod=allowed_by_pod,
+        status=status,
+        message=message,
+        day_label=day_label,
+        assigned_count=len(assignments),
+        available_count=len(allowed_union) if allowed_by_pod else len(available),
+        cached_assignments_map=cached_map,
+    )
+
+
+@app.route("/pod-duty/auto", methods=["POST"])
+def pod_duty_auto_assign():
+    date_raw = request.form.get("date")
+    period_raw = request.form.get("period") or ""
+    assignment_date = _parse_date(date_raw)
+    if not assignment_date:
+        return redirect(url_for("pod_duty_dashboard", status="failed", message="Invalid date."))
+    period_label = manager.normalize_period(period_raw) or period_raw.strip()
+    if not period_label:
+        return redirect(url_for("pod_duty_dashboard", status="failed", message="Invalid period."))
+    assignments, errors = pod_duty_manager.plan_auto_assign(assignment_date, period_label)
+    if assignments:
+        pod_duty_manager.cache_assignments(assignment_date, period_label, assignments)
+    if errors:
+        message = "; ".join(errors)
+        return redirect(
+            url_for(
+                "pod_duty_dashboard",
+                date=assignment_date.isoformat(),
+                period=period_label,
+                status="failed",
+                message=message,
+            )
+        )
+    summary = f"Suggested assignments for {len(assignments)} pods."
+    return redirect(
+        url_for(
+            "pod_duty_dashboard",
+            date=assignment_date.isoformat(),
+            period=period_label,
+            status="success",
+            message=summary,
+        )
+    )
+
+
+@app.route("/pod-duty/save", methods=["POST"])
+def pod_duty_save():
+    date_raw = request.form.get("date")
+    period_raw = request.form.get("period") or ""
+    assignment_date = _parse_date(date_raw)
+    if not assignment_date:
+        return redirect(url_for("pod_duty_dashboard", status="failed", message="Invalid date."))
+    period_label = manager.normalize_period(period_raw) or period_raw.strip()
+    if not period_label:
+        return redirect(url_for("pod_duty_dashboard", status="failed", message="Invalid period."))
+    selections = {}
+    for pod in pod_duty_manager.pods:
+        slug = (request.form.get(f"pod_{pod['key']}") or "").strip()
+        if slug:
+            selections[pod["label"]] = slug
+    success, errors = pod_duty_manager.save_assignments(assignment_date, period_label, selections)
+    if not success:
+        message = "; ".join(errors) if errors else "Unable to save pod duties."
+        return redirect(
+            url_for(
+                "pod_duty_dashboard",
+                date=assignment_date.isoformat(),
+                period=period_label,
+                status="failed",
+                message=message,
+            )
+        )
+    return redirect(
+        url_for(
+            "pod_duty_dashboard",
+            date=assignment_date.isoformat(),
+            period=period_label,
+            status="success",
+            message="Pod duties updated.",
+        )
+    )
+
+
+@app.route("/pod-duty/auto-day", methods=["POST"])
+def pod_duty_auto_assign_full_day():
+    date_raw = request.form.get("date")
+    assignment_date = _parse_date(date_raw)
+    if not assignment_date:
+        return redirect(
+            url_for("pod_duty_dashboard", status="failed", message="Invalid date.")
+        )
+
+    periods = [period for period in ORDERED_PERIODS if period != "Homeroom"]
+    total_suggested = 0
+    errors: list[str] = []
+    for period in periods:
+        current = pod_duty_manager.list_assignments(assignment_date, period)
+        assigned_labels = set(current.keys())
+        missing_pods = [
+            pod["label"]
+            for pod in pod_duty_manager.pods
+            if pod["label"] not in assigned_labels
+        ]
+        if not missing_pods:
+            continue
+        assignments, period_errors = pod_duty_manager.plan_auto_assign(
+            assignment_date,
+            period,
+            target_pods=missing_pods,
+        )
+        if assignments:
+            pod_duty_manager.cache_assignments(assignment_date, period, assignments)
+            total_suggested += len(assignments)
+        if period_errors:
+            for err in period_errors:
+                errors.append(f"{period}: {err}")
+
+    status = "success" if not errors else "failed"
+    summary_parts = [
+        f"Suggested {total_suggested} pod duties across {len(periods)} periods"
+    ]
+    if errors:
+        displayed = errors[:4]
+        summary_parts.append("Errors: " + "; ".join(displayed))
+        if len(errors) > len(displayed):
+            summary_parts.append(f"...and {len(errors) - len(displayed)} more errors")
+    message = ". ".join(summary_parts)
+
+    return redirect(
+        url_for(
+            "pod_duty_dashboard",
+            date=assignment_date.isoformat(),
+            status=status,
+            message=message,
+        )
+    )
+
+
+@app.route("/pod-duty/full-day")
+def pod_duty_full_day():
+    date_raw = request.args.get("date")
+    assignment_date = _parse_date(date_raw) or date.today()
+    periods = [period for period in ORDERED_PERIODS if period != "Homeroom"]
+    rows = []
+    for period in periods:
+        assignments = pod_duty_manager.list_assignments(assignment_date, period)
+        assignments_by_pod = []
+        pods = []
+        for pod in pod_duty_manager.pods:
+            assigned = assignments.get(pod["label"])
+            pods.append(
+                {
+                    "label": pod["label"],
+                    "grade": pod["grade"],
+                    "teacher_name": assigned.get("teacher_name") if assigned else None,
+                    "teacher_email": assigned.get("teacher_email") if assigned else None,
+                    "teacher_slug": assigned.get("teacher_slug") if assigned else None,
+                }
+            )
+        assigned_count = sum(1 for pod in pods if pod["teacher_name"])
+        rows.append({"period": period, "pods": pods, "assigned": assigned_count})
+
+    day_code = WEEKDAY_TO_DAY_CODE.get(assignment_date.weekday())
+    day_label = DAY_LABELS.get(day_code, day_code or "")
+
+    return render_template(
+        "pod_duty_full_day.html",
+        assignment_date=assignment_date,
+        day_label=day_label,
+        rows=rows,
     )
 
 

@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import tempfile
 from datetime import date, datetime, timedelta
 from typing import Any, Callable, Dict, Iterable, List, Optional, Set
+
+from sqlalchemy.exc import IntegrityError
 
 from assignment_settings import AssignmentSettingsManager
 from covers_service import CoversManager
@@ -16,6 +19,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSIGNMENTS_FILE = os.path.join(BASE_DIR, "cover_assignments.json")
 EXCLUDED_TEACHERS_FILE = os.path.join(BASE_DIR, "excluded_teachers.json")
 DAY_CODE_BY_WEEKDAY = {0: "Mo", 1: "Tu", 2: "We", 3: "Th", 4: "Fr"}
+_TIME_PATTERN = re.compile(r"(\d{1,2}):(\d{2})")
 NON_ASSIGNABLE_STATUSES = {"denied", "declined", "rejected", "cancelled", "withdrawn"}
 
 CYCLE_HIGH = "HighSchool"
@@ -155,6 +159,7 @@ class CoverAssignmentManager:
         target_cycles = self._cycles_from_label(record.get("level_label"))
         record_subject = str(record.get("subject") or "").strip()
         absent_email_normalized = absent_email.strip().lower()
+        context_by_date: dict[str, dict[str, Any]] = {}
         current = start_date
         while current <= end_date:
             weekday = current.weekday()
@@ -182,6 +187,7 @@ class CoverAssignmentManager:
                 for entry in self.covers_manager.get_absences_for_date(date_key)
             }
             session_covers_log: dict[str, int] = {}
+            context = context_by_date.setdefault(date_key, self._build_context(date_key))
             for detail in details:
                 cover = self._select_cover_for_detail(
                     date_key,
@@ -193,6 +199,7 @@ class CoverAssignmentManager:
                     absent_emails,
                     session_covers_log,
                     hs_max_slots,
+                    context=context,
                 )
                 if not cover:
                     logger.warning(
@@ -221,15 +228,25 @@ class CoverAssignmentManager:
         hs_max_slots: int,
         exclude_slugs: Optional[Set[str]] = None,
         assignment_counts: Optional[dict[str, dict[str, int]]] = None,
+        context: dict[str, Any] | None = None,
     ) -> Optional[dict[str, Any]]:
+        context = self._ensure_context(context, date_key)
         period_label_raw = detail.get("period_label") or detail.get("period_raw") or ""
         period_lookup = self.schedule_manager.normalize_period(period_label_raw) or period_label_raw
+        requested_intervals = self._intervals_from_text(
+            detail.get("period_raw") or detail.get("time") or ""
+        )
         available_slugs: Optional[Set[str]] = None
         if period_lookup:
-            available_slugs = {
-                teacher["slug"]
-                for teacher in self.schedule_manager.teachers_available(day_code, period_lookup)
-            }
+            cache_key = (day_code, period_lookup)
+            availability_cache: dict[tuple[str, str], Set[str]] = context.setdefault("availability", {})
+            available_slugs = availability_cache.get(cache_key)
+            if available_slugs is None:
+                available_slugs = {
+                    teacher["slug"]
+                    for teacher in self.schedule_manager.teachers_available(day_code, period_lookup)
+                }
+                availability_cache[cache_key] = available_slugs
         target_subject = detail.get("subject") or record_subject
         normalized_target_subject = self._normalize_subject(target_subject)
         candidates: List[dict[str, Any]] = []
@@ -237,6 +254,8 @@ class CoverAssignmentManager:
             slug = teacher.get("slug")
             email = str(teacher.get("email") or "").strip().lower()
             if not slug or not email or email == absent_email:
+                continue
+            if not teacher.get("day_count"):
                 continue
             if exclude_slugs and slug in exclude_slugs:
                 continue
@@ -246,14 +265,24 @@ class CoverAssignmentManager:
                 continue
             if available_slugs is not None and slug not in available_slugs:
                 continue
-            day_summary = self.schedule_manager.day_summary_for_teacher(slug, day_code)
+            day_summary_cache: dict[tuple[str, str], dict[str, Any]] = context.setdefault("day_summary", {})
+            summary_key = (slug, day_code)
+            day_summary = day_summary_cache.get(summary_key)
+            if not day_summary:
+                day_summary = self.schedule_manager.day_summary_for_teacher(slug, day_code)
+                day_summary_cache[summary_key] = day_summary
             if day_summary["free_periods"] <= 0:
                 continue
+            if requested_intervals:
+                teacher_intervals = self._intervals_from_day_summary(day_summary)
+                if self._intervals_overlap(requested_intervals, teacher_intervals):
+                    continue
             teacher_cycles = self._cycles_from_label(teacher.get("level_label"))
             if assignment_counts is not None:
                 database_covers = assignment_counts.get(date_key, {}).get(slug, 0)
             else:
-                database_covers = self._covers_for_teacher_on_date(date_key, slug)
+                cover_counts_cache: dict[str, dict[str, int]] = context.setdefault("cover_counts", {})
+                database_covers = cover_counts_cache.get(slug, 0)
             runtime_covers = session_covers_log.get(slug, 0)
             total_covers = database_covers + runtime_covers
             max_covers = self._max_covers_for_teacher(day_summary, day_code, teacher_cycles)
@@ -286,10 +315,53 @@ class CoverAssignmentManager:
         candidates.sort(key=lambda candidate: candidate["priority"])
         return candidates[0]
 
+    def _intervals_from_text(self, text: str | None) -> list[tuple[int, int]]:
+        if not text:
+            return []
+        intervals: list[tuple[int, int]] = []
+        for segment in text.split(","):
+            matches = _TIME_PATTERN.findall(segment)
+            if len(matches) >= 2:
+                start = self._minutes_from_match(matches[0])
+                end = self._minutes_from_match(matches[1])
+                if end > start:
+                    intervals.append((start, end))
+        return intervals
+
+    @staticmethod
+    def _minutes_from_match(match: tuple[str, str]) -> int:
+        hours, minutes = match
+        try:
+            return int(hours) * 60 + int(minutes)
+        except ValueError:
+            return 0
+
+    def _intervals_from_day_summary(self, day_summary: dict[str, Any]) -> list[tuple[int, int]]:
+        intervals: list[tuple[int, int]] = []
+        for section in day_summary.get("sections") or []:
+            for detail in section.get("details") or []:
+                raw = detail.get("period_raw") or section.get("time") or ""
+                intervals.extend(self._intervals_from_text(raw))
+        return intervals
+
+    @staticmethod
+    def _intervals_overlap(
+        intervals_a: list[tuple[int, int]],
+        intervals_b: list[tuple[int, int]],
+    ) -> bool:
+        if not intervals_a or not intervals_b:
+            return False
+        for start_a, end_a in intervals_a:
+            for start_b, end_b in intervals_b:
+                if start_a < end_b and start_b < end_a:
+                    return True
+        return False
+
     def simulate_assignments(self, records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
         assignments: dict[str, list[dict[str, Any]]] = {}
         assignment_counts: dict[str, dict[str, int]] = {}
         absent_by_date: dict[str, set[str]] = {}
+        context_by_date: dict[str, dict[str, Any]] = {}
         for record in records:
             email = str(record.get("teacher_email") or "").strip().lower()
             if not email:
@@ -343,6 +415,7 @@ class CoverAssignmentManager:
                 hs_max_slots = 5 if is_friday else 7
                 absent_emails = absent_by_date.get(date_key, set())
                 session_covers_log: dict[str, int] = {}
+                context = context_by_date.setdefault(date_key, self._build_context(date_key))
                 for detail in details:
                     slot_key = self._slot_key_for_detail(detail)
                     request_id = record.get("request_id")
@@ -359,6 +432,7 @@ class CoverAssignmentManager:
                         session_covers_log,
                         hs_max_slots,
                         assignment_counts=assignment_counts,
+                        context=context,
                     )
                     if not cover:
                         continue
@@ -556,10 +630,11 @@ class CoverAssignmentManager:
     def _slot_key_for_detail(self, detail: dict[str, Any]) -> str:
         if not detail:
             return ""
-        period_label = str(detail.get("period_label") or detail.get("period_raw") or "General").strip()
-        period_raw = str(detail.get("period_raw") or detail.get("period_label") or "General").strip()
-        class_time = str(detail.get("time") or "").strip()
-        return f"{period_label}|{period_raw}|{class_time}"
+        period_text = str(detail.get("period_label") or detail.get("period_raw") or "General").strip()
+        normalized_period = self.schedule_manager.normalize_period(period_text) or period_text
+        grade = str(detail.get("grade") or "").strip()
+        subject = str(detail.get("subject") or "").strip()
+        return f"{normalized_period}|{grade}|{subject}"
 
     def update_assignment(
         self, date_key: str, index: int, updates: dict[str, Any]
@@ -619,6 +694,7 @@ class CoverAssignmentManager:
         }
         current_cover_slug = entry.get("cover_slug")
         exclude_slugs = {current_cover_slug} if current_cover_slug else set()
+        context = self._build_context(date_key)
         cover = self._select_cover_for_detail(
             date_key,
             day_code,
@@ -630,6 +706,7 @@ class CoverAssignmentManager:
             {},
             hs_max_slots,
             exclude_slugs=exclude_slugs,
+            context=context,
         )
         if not cover:
             return False, "no alternative cover found"
@@ -682,8 +759,13 @@ class CoverAssignmentManager:
                 cover_assigned_at=self._parse_datetime(assignment.get("cover_assigned_at")),
                 day_label=assignment.get("day_label"),
             )
-            session.add(record)
-            session.commit()
+            try:
+                session.add(record)
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                logger.warning("Cover assignment already exists (%s %s)", assignment.get("date"), assignment.get("slot_key"))
+                return None
             return record.id
 
     def _update_assignment_record(self, assignment: dict[str, Any]) -> None:
@@ -841,6 +923,28 @@ class CoverAssignmentManager:
             for assignment in self.assignments.get(date_key, [])
             if assignment.get("cover_slug") == slug
         )
+
+    def _build_cover_counts(self, date_key: str) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for assignment in self.assignments.get(date_key, []):
+            slug = assignment.get("cover_slug")
+            if not slug:
+                continue
+            counts[slug] = counts.get(slug, 0) + 1
+        return counts
+
+    def _build_context(self, date_key: str) -> dict[str, Any]:
+        return {
+            "availability": {},
+            "day_summary": {},
+            "cover_counts": self._build_cover_counts(date_key),
+        }
+
+    def _ensure_context(self, context: dict[str, Any] | None, date_key: str) -> dict[str, Any]:
+        if context is not None:
+            return context
+        return self._build_context(date_key)
+
 
     def _day_code_from_date(self, date_key: str) -> Optional[str]:
         try:

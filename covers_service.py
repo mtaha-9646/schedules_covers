@@ -9,6 +9,7 @@ from datetime import date, datetime
 from typing import Any, Callable, Dict, Optional
 
 from models import AbsenceRecord
+from sqlalchemy import and_
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COVERS_FILE = os.path.join(BASE_DIR, "covers.json")
@@ -23,6 +24,8 @@ ABSENCES_REQUEST_SECRET_HEADER = os.getenv(
 )
 
 logger = logging.getLogger(__name__)
+
+NON_ASSIGNABLE_STATUSES = {"denied", "declined", "rejected", "cancelled", "withdrawn"}
 
 
 class CoversManager:
@@ -250,7 +253,13 @@ class CoversManager:
         normalized_date = self._normalize_date(date_key) if date_key else datetime.utcnow().date().isoformat()
         if self._session_factory:
             return self._get_absences_for_date_db(normalized_date)
-        return self.records.get(normalized_date, [])
+        target_date = date.fromisoformat(normalized_date)
+        result: list[dict[str, Any]] = []
+        for entries in self.records.values():
+            for entry in entries:
+                if self._entry_matches_date(entry, target_date):
+                    result.append(entry)
+        return result
 
     def _get_absences_for_date_db(self, normalized_date: str) -> list[dict[str, Any]]:
         try:
@@ -260,7 +269,13 @@ class CoversManager:
         with self._session_factory() as session:
             records = (
                 session.query(AbsenceRecord)
-                .filter(AbsenceRecord.leave_start == target_date)
+                .filter(
+                    and_(
+                        AbsenceRecord.leave_start <= target_date,
+                        AbsenceRecord.leave_end >= target_date,
+                    )
+                )
+                .filter(AbsenceRecord.status.notin_(NON_ASSIGNABLE_STATUSES))
                 .all()
             )
         return [self._record_to_dict(record) for record in records]
@@ -274,6 +289,20 @@ class CoversManager:
         else:
             submitted_at = self._normalize_datetime(submitted_at)
         return leave_start, leave_end, submitted_at
+
+    def _entry_matches_date(self, entry: dict[str, Any], target_date: date) -> bool:
+        status = (entry.get("status") or "").strip().lower()
+        if status in NON_ASSIGNABLE_STATUSES:
+            return False
+        try:
+            start = date.fromisoformat(entry.get("leave_start") or "")
+        except (TypeError, ValueError):
+            return False
+        try:
+            end = date.fromisoformat(entry.get("leave_end") or entry.get("leave_start") or "")
+        except (TypeError, ValueError):
+            end = start
+        return start <= target_date <= end
 
     def _normalize_datetime(self, raw: Any) -> str:
         if isinstance(raw, datetime):
