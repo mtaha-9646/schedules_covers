@@ -128,3 +128,31 @@ class DutyAssignment(Base):
     teacher_name = Column(String)
     teacher_email = Column(String, index=True)
     created_at = Column(DateTime)
+
+
+class PodDutyAssignment(Base):
+    __tablename__ = "pod_duty_assignments"
+
+    id = Column(Integer, primary_key=True)
+    assignment_date = Column(Date, index=True, nullable=False)
+    day_code = Column(String, index=True)
+    period_label = Column(String, index=True)
+    pod_label = Column(String, index=True)
+    teacher_name = Column(String)
+    teacher_email = Column(String)
+    teacher_slug = Column(String, index=True)
+    created_at = Column(DateTime)
+
+
+class PodDutyNotification(Base):
+    __tablename__ = "pod_duty_notifications"
+
+    id = Column(Integer, primary_key=True)
+    assignment_date = Column(Date, index=True)
+    period_label = Column(String, index=True)
+    pod_label = Column(String)
+    teacher_slug = Column(String)
+    teacher_name = Column(String)
+    teacher_email = Column(String)
+    assignment_hash = Column(String, unique=True)
+    notified_at = Column(DateTime)
