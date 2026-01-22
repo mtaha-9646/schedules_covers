@@ -58,9 +58,12 @@ class PodDutyManager:
                     "assignment_date": date_iso,
                     "day_code": row.day_code or "",
                     "period_label": row.period_label or "",
+                    "period_raw": row.period_label or "",
                     "pod_label": row.pod_label or "",
+                    "teacher": row.teacher_name,
                     "teacher_name": row.teacher_name,
                     "teacher_email": row.teacher_email,
+                    "details": f"Pod duty {row.pod_label or ''}".strip(),
                 }
             )
         self.schedule_manager.rebuild_pod_duty_assignments(assignments)
@@ -86,7 +89,11 @@ class PodDutyManager:
     def _day_code_for_date(self, assignment_date: date) -> str | None:
         return WEEKDAY_TO_DAY_CODE.get(assignment_date.weekday())
 
-    def list_assignments(self, assignment_date: date | str | None, period_label: str) -> dict[str, dict[str, Any]]:
+    def list_assignments(
+        self,
+        assignment_date: date | str | None,
+        period_label: str,
+    ) -> dict[str, dict[str, Any]]:
         parsed = self._parse_assignment_date(assignment_date)
         period = self._normalize_period(period_label)
         if not parsed or not period or not self._session_factory:
@@ -112,10 +119,18 @@ class PodDutyManager:
             }
         return result
 
-    def assignments_for_period(self, assignment_date: date | str | None, period_label: str) -> list[dict[str, Any]]:
+    def assignments_for_period(
+        self,
+        assignment_date: date | str | None,
+        period_label: str,
+    ) -> list[dict[str, Any]]:
         return list(self.list_assignments(assignment_date, period_label).values())
 
-    def available_teachers(self, assignment_date: date | str | None, period_label: str) -> list[dict[str, Any]]:
+    def available_teachers(
+        self,
+        assignment_date: date | str | None,
+        period_label: str,
+    ) -> list[dict[str, Any]]:
         parsed = self._parse_assignment_date(assignment_date)
         period = self._normalize_period(period_label)
         if not parsed or not period:
@@ -128,7 +143,11 @@ class PodDutyManager:
         )
         return payload.get("available", [])
 
-    def allowed_slugs_by_pod(self, assignment_date: date | str | None, period_label: str) -> dict[str, set[str]]:
+    def allowed_slugs_by_pod(
+        self,
+        assignment_date: date | str | None,
+        period_label: str,
+    ) -> dict[str, set[str]]:
         parsed = self._parse_assignment_date(assignment_date)
         period = self._normalize_period(period_label)
         if not parsed or not period:
@@ -136,14 +155,18 @@ class PodDutyManager:
         excluded = self.excluded_slugs
         available = self.available_teachers(parsed, period)
         absentees = self._absent_slugs(parsed)
+        pool = sorted(
+            {
+                teacher.get("slug")
+                for teacher in available
+                if teacher.get("slug")
+                and teacher.get("slug") not in excluded
+                and teacher.get("slug") not in absentees
+            }
+        )
         allowed: dict[str, set[str]] = {}
-        slugs = {
-            teacher.get("slug")
-            for teacher in available
-            if teacher.get("slug") and teacher.get("slug") not in excluded and teacher.get("slug") not in absentees
-        }
         for pod in self._pods:
-            allowed[pod["label"]] = set(slugs)
+            allowed[pod["label"]] = set(pool)
         return allowed
 
     def _absent_slugs(self, assignment_date: date | None) -> set[str]:
@@ -157,7 +180,12 @@ class PodDutyManager:
         }
         return {slug for slug in slugs if slug}
 
-    def cache_assignments(self, assignment_date: date | str | None, period_label: str, assignments: list[dict[str, Any]]) -> None:
+    def cache_assignments(
+        self,
+        assignment_date: date | str | None,
+        period_label: str,
+        assignments: list[dict[str, Any]],
+    ) -> None:
         parsed = self._parse_assignment_date(assignment_date)
         period = self._normalize_period(period_label)
         if not parsed or not period:
@@ -165,7 +193,11 @@ class PodDutyManager:
         key = self._assignment_key(parsed, period)
         self._cached_assignments[key] = [assignment.copy() for assignment in assignments]
 
-    def get_cached_assignments(self, assignment_date: date | str | None, period_label: str) -> list[dict[str, Any]]:
+    def get_cached_assignments(
+        self,
+        assignment_date: date | str | None,
+        period_label: str,
+    ) -> list[dict[str, Any]]:
         parsed = self._parse_assignment_date(assignment_date)
         period = self._normalize_period(period_label)
         if not parsed or not period:
@@ -173,7 +205,11 @@ class PodDutyManager:
         key = self._assignment_key(parsed, period)
         return [assignment.copy() for assignment in self._cached_assignments.get(key, [])]
 
-    def clear_cached_assignments(self, assignment_date: date | str | None, period_label: str) -> None:
+    def clear_cached_assignments(
+        self,
+        assignment_date: date | str | None,
+        period_label: str,
+    ) -> None:
         parsed = self._parse_assignment_date(assignment_date)
         period = self._normalize_period(period_label)
         if not parsed or not period:
@@ -247,12 +283,15 @@ class PodDutyManager:
         excluded = self.excluded_slugs
         absent = self._absent_slugs(parsed)
         for pod in pods_to_assign:
-            slug = None
-            for candidate in sorted(allowed.get(pod["label"], [])):
-                if candidate in used or candidate in excluded or candidate in absent:
-                    continue
-                slug = candidate
-                break
+            slugs = sorted(allowed.get(pod["label"], []))
+            slug = next(
+                (
+                    candidate
+                    for candidate in slugs
+                    if candidate not in used and candidate not in excluded and candidate not in absent
+                ),
+                None,
+            )
             if not slug:
                 errors.append(f"No available teacher for {pod['label']}.")
                 continue
@@ -363,7 +402,11 @@ class PodDutyManager:
         self.clear_cached_assignments(parsed, period)
         return True, []
 
-    def assignments_to_notify(self, assignments: list[dict[str, Any]], force: bool = False) -> list[dict[str, Any]]:
+    def assignments_to_notify(
+        self,
+        assignments: list[dict[str, Any]],
+        force: bool = False,
+    ) -> list[dict[str, Any]]:
         return assignments
 
     def record_notifications(self, entries: list[tuple[dict[str, Any], str]]) -> None:
